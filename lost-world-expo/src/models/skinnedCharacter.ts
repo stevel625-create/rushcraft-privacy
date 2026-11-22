@@ -61,7 +61,8 @@ export function retargetClips(clips: THREE.AnimationClip[]) {
   });
 }
 
-const WALK_REF = 1.7, RUN_REF = 4.6; // m/s the Mixamo walk / run cycles were authored at (approx.)
+/** m/s the Mixamo walk / run cycles are authored at (approx.); built-in clips pass their own. */
+const MIXAMO_WALK_REF = 1.7, MIXAMO_RUN_REF = 4.6;
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 
 /**
@@ -75,7 +76,12 @@ export class SkinnedCharacter implements CharacterVisual {
   private w = { idle: 1, walk: 0, run: 0, jump: 0 };
   private wasGrounded = true;
 
-  constructor(model: THREE.Object3D, clips: THREE.AnimationClip[], height: number) {
+  private readonly walkRef: number;
+  private readonly runRef: number;
+
+  constructor(model: THREE.Object3D, clips: THREE.AnimationClip[], height: number, refs: { walkRef?: number; runRef?: number } = {}) {
+    this.walkRef = refs.walkRef ?? MIXAMO_WALK_REF;
+    this.runRef = refs.runRef ?? MIXAMO_RUN_REF;
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const k = height / (size.y || 1);
@@ -105,7 +111,7 @@ export class SkinnedCharacter implements CharacterVisual {
   get hasAnimations() { return Object.keys(this.actions).length > 0; }
 
   update(dt: number, speed: number, grounded: boolean, _vy: number) {
-    const run = clamp((speed - 2.4) / 2.4, 0, 1);
+    const run = clamp((speed - this.walkRef) / (this.runRef - this.walkRef), 0, 1);
     const moving = clamp(speed / 1.2, 0, 1);
     const jumpA = this.actions.jump;
     if (jumpA && this.wasGrounded && !grounded) jumpA.reset().play(); // take-off: play the jump once
@@ -122,8 +128,8 @@ export class SkinnedCharacter implements CharacterVisual {
     const { idle, walk, run: runA } = this.actions;
     idle?.setEffectiveWeight(this.w.idle);
     jumpA?.setEffectiveWeight(this.w.jump);
-    if (walk) { walk.setEffectiveWeight(this.w.walk); walk.timeScale = clamp(speed / WALK_REF, 0.6, 1.5); }
-    if (runA) { runA.setEffectiveWeight(this.w.run); runA.timeScale = grounded || jumpA ? clamp(speed / RUN_REF, 0.7, 1.35) : 0.15; }
+    if (walk) { walk.setEffectiveWeight(this.w.walk); walk.timeScale = clamp(speed / this.walkRef, 0.6, 1.5); }
+    if (runA) { runA.setEffectiveWeight(this.w.run); runA.timeScale = grounded || jumpA ? clamp(speed / this.runRef, 0.7, 1.35) : 0.15; }
     this.mixer.update(dt);
   }
 }
