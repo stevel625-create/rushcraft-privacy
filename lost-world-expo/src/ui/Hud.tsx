@@ -49,6 +49,14 @@ export function Hud({ game, buttons, joystick, onPause, onPromptChange }: Props)
       {toast !== '' && <Text style={styles.toast} pointerEvents="none">{toast}</Text>}
       {hud.prompt && <Text style={styles.prompt} pointerEvents="none">{hud.prompt}</Text>}
 
+      {!joystick.active && (
+        // Resting joystick so players can see where to move; touching anywhere on the left half grabs it.
+        <View pointerEvents="none" style={styles.joyRest}>
+          <View style={styles.joyBaseRest} />
+          <View style={styles.joyKnobRest} />
+          <Text style={styles.joyHint}>MOVE</Text>
+        </View>
+      )}
       {joystick.active && (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <View style={[styles.joyBase, { left: joystick.ox - 70, top: joystick.oy - 70 }]} />
@@ -85,6 +93,10 @@ const styles = StyleSheet.create({
   prompt: { position: 'absolute', bottom: '30%', alignSelf: 'center', color: '#fff', fontSize: 17, backgroundColor: 'rgba(0,0,0,0.45)',
     paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14, overflow: 'hidden' },
   joyBase: { position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)', backgroundColor: 'rgba(255,255,255,0.08)' },
+  joyRest: { position: 'absolute', left: 60, bottom: 50, width: 140, height: 140, alignItems: 'center', justifyContent: 'center' },
+  joyBaseRest: { position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(0,0,0,0.18)' },
+  joyKnobRest: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.35)' },
+  joyHint: { position: 'absolute', bottom: -22, color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '800', letterSpacing: 2 },
   joyKnob: { position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.45)' },
   circle: { position: 'absolute', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)' },
   circleAccent: { backgroundColor: 'rgba(242,191,64,0.3)', borderColor: colors.gold },
