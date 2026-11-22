@@ -238,7 +238,7 @@ namespace LostWorld.Core
             body.transform.localPosition = new Vector3(0, 0.9f, 0);
             body.transform.localScale = new Vector3(0.7f, 0.9f, 0.7f);
             Object.Destroy(body.GetComponent<CapsuleCollider>());
-            var mat = new Material(Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard")) { color = shirt };
+            var mat = MaterialFactory.Create(shirt);
             body.GetComponent<Renderer>().sharedMaterial = mat;
 
             return go;

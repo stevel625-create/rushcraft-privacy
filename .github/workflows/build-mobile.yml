@@ -1,0 +1,126 @@
+# Builds THE LOST WORLD for Android (APK + AAB) and iOS (Xcode project) with GameCI.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   UNITY_LICENSE   contents of your Unity .ulf license file (Personal or Pro)
+#   UNITY_EMAIL     Unity account email
+#   UNITY_PASSWORD  Unity account password
+# Optional, for a Play Store-signed AAB:
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASS, ANDROID_KEYALIAS_NAME, ANDROID_KEYALIAS_PASS
+#
+# Run it from the Actions tab ("Build mobile" > Run workflow), or push a tag like v0.1.0.
+
+name: Build mobile
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "Which builds to run"
+        type: choice
+        default: all
+        options: [all, android, ios]
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: build-mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Android APK (test install)
+            family: android
+            targetPlatform: Android
+            androidExportType: androidPackage
+          - name: Android AAB (Play Store)
+            family: android
+            targetPlatform: Android
+            androidExportType: androidAppBundle
+          - name: iOS Xcode project
+            family: ios
+            targetPlatform: iOS
+            androidExportType: androidPackage   # ignored for iOS
+
+    steps:
+      - name: Skip platforms not requested
+        id: gate
+        run: |
+          want="${{ github.event.inputs.platforms || 'all' }}"
+          if [ "$want" = "all" ] || [ "$want" = "${{ matrix.family }}" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Unity license secrets
+        if: steps.gate.outputs.run == 'true'
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          missing=""
+          [ -z "$UNITY_LICENSE" ] && missing="$missing UNITY_LICENSE"
+          [ -z "$UNITY_EMAIL" ] && missing="$missing UNITY_EMAIL"
+          [ -z "$UNITY_PASSWORD" ] && missing="$missing UNITY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. See https://game.ci/docs/github/activation"
+            exit 1
+          fi
+
+      - name: Free disk space (Unity images are large)
+        if: steps.gate.outputs.run == 'true'
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: false
+          large-packages: false
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          lfs: true
+
+      - uses: actions/cache@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          path: TheLostWorld/Library
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('TheLostWorld/Assets/**', 'TheLostWorld/Packages/**', 'TheLostWorld/ProjectSettings/**') }}
+          restore-keys: |
+            Library-${{ matrix.targetPlatform }}-
+
+      - name: Build with Unity
+        if: steps.gate.outputs.run == 'true'
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: TheLostWorld
+          targetPlatform: ${{ matrix.targetPlatform }}
+          buildName: TheLostWorld
+          buildsPath: build
+          buildMethod: LostWorld.EditorTools.BuildScript.BuildFromCommandLine
+          versioning: Custom
+          version: 0.1.${{ github.run_number }}
+          androidVersionCode: ${{ github.run_number }}
+          androidExportType: ${{ matrix.androidExportType }}
+          androidKeystoreName: thelostworld.keystore
+          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+
+      - uses: actions/upload-artifact@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          name: TheLostWorld-${{ matrix.targetPlatform }}-${{ matrix.family == 'ios' && 'xcode' || matrix.androidExportType }}
+          path: build/${{ matrix.targetPlatform }}
+          retention-days: 14

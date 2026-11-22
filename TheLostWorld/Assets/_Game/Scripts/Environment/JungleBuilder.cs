@@ -1,3 +1,4 @@
+using LostWorld.Core;
 using LostWorld.Interaction;
 using LostWorld.Missions;
 using UnityEngine;
@@ -61,13 +62,7 @@ namespace LostWorld.Environment
             _glow = MakeMat(new Color(0.3f, 0.9f, 1f));
         }
 
-        static Material MakeMat(Color c, float smooth = 0.2f)
-        {
-            Shader s = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            var m = new Material(s) { color = c };
-            if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", smooth);
-            return m;
-        }
+        static Material MakeMat(Color c, float smooth = 0.2f) => MaterialFactory.Create(c, smooth);
 
         // ---------- Terrain ----------
 
