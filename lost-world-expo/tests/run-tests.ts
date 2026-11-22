@@ -7,6 +7,7 @@ import { SUMMIT_Y } from '../src/levels/level5Peak';
 import { runAutopilot, type Step } from './autopilot';
 import { InputState } from '../src/engine/input';
 import { TouchController } from '../src/ui/touchController';
+import { createRenderer, type GLLike } from '../src/ui/renderer';
 
 let failures = 0;
 const results: string[] = [];
@@ -65,6 +66,33 @@ function check(name: string, ok: boolean, detail = '') {
   t.end([{ id: 1, x: 150, y: 230 }]);
   check('touch: move + jump + camera drag at once', moving && jumped && look.dx === 40 && input.moveY === 0,
     `moveY=${input.moveY} jumped=${jumped} lookDX=${look.dx}`);
+}
+
+// ------------------------------------------------------------ Expo Go renderer workaround
+{
+  // Old Expo Go native expo-gl: WebGL2RenderingContext inherits from WebGLRenderingContext.
+  const g = globalThis as { WebGLRenderingContext?: unknown };
+  const saved = g.WebGLRenderingContext;
+  class W1 {}
+  class W2 extends W1 { createVertexArray() {} texImage3D() {} }
+  g.WebGLRenderingContext = W1;
+  // Same check three.js r187 runs in its WebGLRenderer constructor.
+  const make = (p: { context?: unknown }) => {
+    const Ctor = g.WebGLRenderingContext as (new () => object) | undefined;
+    if (typeof Ctor !== 'undefined' && p.context instanceof Ctor) throw new Error('WebGL 1 is not supported since r163.');
+    return {} as never;
+  };
+  const ctx = Object.assign(new W2(), { drawingBufferWidth: 8, drawingBufferHeight: 8, supportsWebGL2: true }) as unknown as GLLike;
+  let error = '';
+  try { createRenderer(ctx, make); } catch (e) { error = (e as Error).message; }
+  const restored = g.WebGLRenderingContext === W1;
+  class Only1 extends W1 {}
+  let webgl1Message = '';
+  try { createRenderer(Object.assign(new Only1(), { drawingBufferWidth: 1, drawingBufferHeight: 1, supportsWebGL2: false }) as unknown as GLLike, make); }
+  catch (e) { webgl1Message = (e as Error).message; }
+  g.WebGLRenderingContext = saved;
+  check('renderer: old Expo Go WebGL2 context accepted by three.js check', error === '' && restored, error || (restored ? '' : 'global not restored'));
+  check('renderer: true WebGL 1 device gets a clear message', webgl1Message.includes('needs WebGL 2'), webgl1Message);
 }
 
 // ------------------------------------------------------------ cave map claim

@@ -1,9 +1,9 @@
 import { GLView, type ExpoWebGLRenderingContext } from 'expo-gl';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
-import * as THREE from 'three';
+import { Platform, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import type { Game } from '../engine/game';
 import { Hud } from './Hud';
+import { createRenderer, type GLLike } from './renderer';
 import { TouchController, buttonZones, type JoystickVisual, type TouchPoint } from './touchController';
 
 export type ViewMode = 'play' | 'idle' | 'frozen';
@@ -15,33 +15,13 @@ interface Props {
   onPause(): void;
 }
 
-/** three.js needs a canvas-like object; expo-gl gives us only the GL context. */
-function fakeCanvas(gl: ExpoWebGLRenderingContext) {
-  return {
-    width: gl.drawingBufferWidth,
-    height: gl.drawingBufferHeight,
-    style: {},
-    clientHeight: gl.drawingBufferHeight,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    getContext: () => gl,
-  } as unknown as HTMLCanvasElement;
-}
-
-/** Some native GL contexts return null here; three.js reads `.alpha` from it. */
-function ensureContextAttributes(gl: ExpoWebGLRenderingContext) {
-  const original = gl.getContextAttributes?.bind(gl);
-  const fallback = { alpha: true, antialias: false, depth: true, stencil: false, premultipliedAlpha: true,
-    preserveDrawingBuffer: false, powerPreference: 'default', failIfMajorPerformanceCaveat: false, desynchronized: false };
-  (gl as { getContextAttributes: () => unknown }).getContextAttributes = () => original?.() ?? fallback;
-}
-
 export function GameView({ game, mode, onPause }: Props) {
   const playing = mode === 'play';
   const { width, height } = useWindowDimensions();
   const [touch] = useState(() => new TouchController(game.input));
   const [joystick, setJoystick] = useState<JoystickVisual>({ active: false, ox: 0, oy: 0, kx: 0, ky: 0 });
   const modeRef = useRef(mode);
+  const [glError, setGlError] = useState<string | null>(null);
   const frame = useRef<number | null>(null);
 
   useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -97,8 +77,18 @@ export function GameView({ game, mode, onPause }: Props) {
   }, [game, onPause]);
 
   const onContextCreate = (gl: ExpoWebGLRenderingContext) => {
-    ensureContextAttributes(gl);
-    const renderer = new THREE.WebGLRenderer({ canvas: fakeCanvas(gl), context: gl as unknown as WebGL2RenderingContext, antialias: false });
+    const glAny = gl as unknown as GLLike;
+    let renderer;
+    try {
+      console.log('[LostWorld] GL:', gl.getParameter(gl.VERSION), '| webgl2:', glAny.supportsWebGL2,
+        '| buffer:', gl.drawingBufferWidth, 'x', gl.drawingBufferHeight);
+      renderer = createRenderer(glAny);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.warn('[LostWorld] Could not start 3D:', message);
+      setGlError(message);
+      return;
+    }
     renderer.setPixelRatio(1);
     renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight, false);
     game.setAspect(gl.drawingBufferWidth / gl.drawingBufferHeight);
@@ -124,6 +114,12 @@ export function GameView({ game, mode, onPause }: Props) {
   return (
     <View style={StyleSheet.absoluteFill}>
       <GLView style={StyleSheet.absoluteFill} onContextCreate={onContextCreate} msaaSamples={0} />
+      {glError && (
+        <View style={[StyleSheet.absoluteFill, styles.errorBox]} pointerEvents="none">
+          <Text style={styles.errorTitle}>3D couldn&apos;t start on this device</Text>
+          <Text style={styles.errorText}>{glError}</Text>
+        </View>
+      )}
       {playing && (
         <View
           style={StyleSheet.absoluteFill}
@@ -140,3 +136,9 @@ export function GameView({ game, mode, onPause }: Props) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  errorBox: { alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 24, paddingHorizontal: 24 },
+  errorTitle: { color: '#f2bf40', fontWeight: '800', fontSize: 15 },
+  errorText: { color: '#f4f1e8', fontSize: 13, textAlign: 'center', marginTop: 4 },
+});
