@@ -7,7 +7,7 @@ import { SUMMIT_Y } from '../src/levels/level5Peak';
 import { runAutopilot, type Step } from './autopilot';
 import { InputState } from '../src/engine/input';
 import { TouchController } from '../src/ui/touchController';
-import { createRenderer, type GLLike } from '../src/ui/renderer';
+import { createRenderer, filterPixelStore, withWebGL1GlobalHidden, type GLLike } from '../src/ui/renderer';
 import fs from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
@@ -96,6 +96,33 @@ function check(name: string, ok: boolean, detail = '') {
   g.WebGLRenderingContext = saved;
   check('renderer: old Expo Go WebGL2 context accepted by three.js check', error === '' && restored, error || (restored ? '' : 'global not restored'));
   check('renderer: true WebGL 1 device gets a clear message', webgl1Message.includes('needs WebGL 2'), webgl1Message);
+}
+
+{
+  // Global defined like a native install: non-configurable but writable. Must still be hidden and restored.
+  const g = globalThis as Record<string, unknown>;
+  const saved = Object.getOwnPropertyDescriptor(g, 'WebGLRenderingContext');
+  class W1 {}
+  Object.defineProperty(g, 'WebGLRenderingContext', { value: W1, writable: true, configurable: false, enumerable: false });
+  const seen = withWebGL1GlobalHidden(() => typeof g.WebGLRenderingContext);
+  const restored = g.WebGLRenderingContext === W1;
+  check('renderer: non-configurable WebGLRenderingContext global hidden and restored', seen === 'undefined' && restored, `inside=${seen} restored=${restored}`);
+  // A non-configurable property can't be redefined or deleted, only reassigned (it is writable).
+  g.WebGLRenderingContext = saved?.value;
+}
+{
+  const calls: [number, number | boolean][] = [];
+  const gl = { contextId: 1, drawingBufferWidth: 1, drawingBufferHeight: 1,
+    pixelStorei: (p: number, v: number | boolean) => { calls.push([p, v]); } } as unknown as GLLike;
+  filterPixelStore(gl);
+  const ps = gl.pixelStorei as (p: number, v: number | boolean) => void;
+  ps(0x9240, true);   // UNPACK_FLIP_Y_WEBGL: supported, passed through
+  ps(0x0cf5, 4);      // UNPACK_ALIGNMENT: supported
+  ps(0x9241, false);  // UNPACK_PREMULTIPLY_ALPHA_WEBGL default: dropped
+  ps(0x9243, 0);      // UNPACK_COLORSPACE_CONVERSION_WEBGL NONE: dropped
+  ps(0x0cf2, 0);      // UNPACK_ROW_LENGTH 0: dropped
+  check('renderer: pixelStorei passes supported params and drops unsupported defaults',
+    calls.length === 2 && calls[0][0] === 0x9240 && calls[1][0] === 0x0cf5, JSON.stringify(calls));
 }
 
 // ------------------------------------------------------------ cave map claim
