@@ -54,16 +54,14 @@ function check(name: string, ok: boolean, detail = '') {
 {
   const input = new InputState();
   const t = new TouchController(input);
-  t.layout(800, 400);
-  t.start([{ id: 1, x: 150, y: 300 }]);       // left thumb down
-  t.move([{ id: 1, x: 150, y: 230 }]);        // push up (forward), full deflection
-  t.start([{ id: 2, x: 700, y: 305 }]);       // right thumb taps JUMP while moving
+  t.stickStart(150, 300);           // left thumb down
+  t.stickMove(150, 230);            // push up (forward), full deflection
+  t.press('jump');                  // right thumb taps JUMP while moving
   const moving = input.moveY > 0.99 && Math.abs(input.moveX) < 0.01;
   const jumped = input.consumeJump();
-  t.start([{ id: 3, x: 600, y: 100 }]);       // another finger drags the camera
-  t.move([{ id: 3, x: 640, y: 100 }]);
+  t.look(40, 0);                    // another finger drags the camera
   const look = input.consumeLook();
-  t.end([{ id: 1, x: 150, y: 230 }]);
+  t.stickEnd();
   check('touch: move + jump + camera drag at once', moving && jumped && look.dx === 40 && input.moveY === 0,
     `moveY=${input.moveY} jumped=${jumped} lookDX=${look.dx}`);
 }

@@ -9,12 +9,6 @@ export interface ButtonZone {
   r: number;
 }
 
-export interface TouchPoint {
-  id: number;
-  x: number;
-  y: number;
-}
-
 export interface JoystickVisual {
   active: boolean;
   ox: number;
@@ -23,7 +17,7 @@ export interface JoystickVisual {
   ky: number;
 }
 
-const JOY_RADIUS = 70;
+export const JOY_RADIUS = 70;
 
 /** Button positions for a screen size (pure, so the HUD can draw them during render). */
 export function buttonZones(width: number, height: number): ButtonZone[] {
@@ -34,84 +28,47 @@ export function buttonZones(width: number, height: number): ButtonZone[] {
 }
 
 /**
- * Multi-touch controls from one full-screen touch surface:
- * left half = floating joystick, right half = camera drag, circles = Jump / Use buttons.
- * One surface avoids React Native's single-responder limit (moving + jumping at once).
+ * Turns gesture callbacks into game input. Each control zone (left stick, right camera area,
+ * buttons) has its own native gesture, so several fingers work at once.
  */
 export class TouchController {
-  buttons: ButtonZone[] = [];
-  useEnabled = false;
   joystick: JoystickVisual = { active: false, ox: 0, oy: 0, kx: 0, ky: 0 };
-  private width = 1;
-  private moveId: number | null = null;
-  private lookId: number | null = null;
-  private lastLook = { x: 0, y: 0 };
 
   constructor(private input: InputState) {}
 
-  layout(width: number, height: number) {
-    this.width = width;
-    this.buttons = buttonZones(width, height);
+  /** Finger down in the stick zone: the stick centres under the thumb (floating joystick). */
+  stickStart(x: number, y: number) {
+    this.joystick = { active: true, ox: x, oy: y, kx: x, ky: y };
+    this.input.setMove(0, 0);
   }
 
-  setUseEnabled(enabled: boolean) {
-    this.useEnabled = enabled;
+  /** Finger moved: (x, y) is its current screen position. */
+  stickMove(x: number, y: number) {
+    if (!this.joystick.active) this.stickStart(x, y);
+    let dx = x - this.joystick.ox, dy = y - this.joystick.oy;
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_RADIUS) { dx *= JOY_RADIUS / d; dy *= JOY_RADIUS / d; }
+    this.joystick = { ...this.joystick, kx: this.joystick.ox + dx, ky: this.joystick.oy + dy };
+    // Screen y grows downward; stick "forward" is up.
+    this.input.setMove(dx / JOY_RADIUS, -dy / JOY_RADIUS);
   }
 
-  private hitButton(t: TouchPoint): ButtonId | null {
-    for (const b of this.buttons) {
-      if (b.id === 'use' && !this.useEnabled) continue;
-      if (Math.hypot(t.x - b.x, t.y - b.y) <= b.r + 12) return b.id;
-    }
-    return null;
+  stickEnd() {
+    this.joystick = { ...this.joystick, active: false };
+    this.input.setMove(0, 0);
   }
 
-  start(touches: TouchPoint[]) {
-    for (const t of touches) {
-      const btn = this.hitButton(t);
-      if (btn === 'jump') { this.input.queueJump(); continue; }
-      if (btn === 'use') { this.input.queueInteract(); continue; }
-      if (t.x < this.width / 2 && this.moveId === null) {
-        this.moveId = t.id;
-        this.joystick = { active: true, ox: t.x, oy: t.y, kx: t.x, ky: t.y };
-        this.input.setMove(0, 0);
-      } else if (t.x >= this.width / 2 && this.lookId === null) {
-        this.lookId = t.id;
-        this.lastLook = { x: t.x, y: t.y };
-      }
-    }
+  /** Camera drag by (dx, dy) pixels since the last update. */
+  look(dx: number, dy: number) {
+    this.input.addLook(dx, dy);
   }
 
-  move(touches: TouchPoint[]) {
-    for (const t of touches) {
-      if (t.id === this.moveId) {
-        let dx = t.x - this.joystick.ox, dy = t.y - this.joystick.oy;
-        const d = Math.hypot(dx, dy);
-        if (d > JOY_RADIUS) { dx *= JOY_RADIUS / d; dy *= JOY_RADIUS / d; }
-        this.joystick = { ...this.joystick, kx: this.joystick.ox + dx, ky: this.joystick.oy + dy };
-        // Screen y grows downward; stick "forward" is up.
-        this.input.setMove(dx / JOY_RADIUS, -dy / JOY_RADIUS);
-      } else if (t.id === this.lookId) {
-        this.input.addLook(t.x - this.lastLook.x, t.y - this.lastLook.y);
-        this.lastLook = { x: t.x, y: t.y };
-      }
-    }
-  }
-
-  end(touches: TouchPoint[]) {
-    for (const t of touches) {
-      if (t.id === this.moveId) {
-        this.moveId = null;
-        this.joystick = { ...this.joystick, active: false };
-        this.input.setMove(0, 0);
-      }
-      if (t.id === this.lookId) this.lookId = null;
-    }
+  press(id: ButtonId) {
+    if (id === 'jump') this.input.queueJump();
+    else this.input.queueInteract();
   }
 
   reset() {
-    this.moveId = this.lookId = null;
-    this.joystick = { ...this.joystick, active: false };
-    this.input.setMove(0, 0);
+    this.stickEnd();
   }
 }

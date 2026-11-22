@@ -1,10 +1,11 @@
 import { GLView, type ExpoWebGLRenderingContext } from 'expo-gl';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
+import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { Game } from '../engine/game';
 import { Hud } from './Hud';
 import { createRenderer, type GLLike } from './renderer';
-import { TouchController, buttonZones, type JoystickVisual, type TouchPoint } from './touchController';
+import { Controls } from './Controls';
+import { TouchController, buttonZones, type JoystickVisual } from './touchController';
 
 export type ViewMode = 'play' | 'idle' | 'frozen';
 
@@ -25,7 +26,7 @@ export function GameView({ game, mode, onPause }: Props) {
   const frame = useRef<number | null>(null);
 
   useEffect(() => { modeRef.current = mode; }, [mode]);
-  useEffect(() => { touch.layout(width, height); }, [touch, width, height]);
+  const [useEnabled, setUseEnabled] = useState(false);
 
   // Leaving play mode: hide the joystick (state adjusted during render, as React recommends)...
   const [wasPlaying, setWasPlaying] = useState(playing);
@@ -113,9 +114,8 @@ export function GameView({ game, mode, onPause }: Props) {
     loop();
   };
 
-  const points = (e: GestureResponderEvent): TouchPoint[] =>
-    e.nativeEvent.changedTouches.map((t) => ({ id: Number(t.identifier), x: t.pageX, y: t.pageY }));
   const sync = () => setJoystick({ ...touch.joystick });
+  const buttons = buttonZones(width, height);
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -132,19 +132,8 @@ export function GameView({ game, mode, onPause }: Props) {
           <Text style={styles.errorText}>{glError}</Text>
         </View>
       )}
-      {playing && (
-        <View
-          style={StyleSheet.absoluteFill}
-          onTouchStart={(e) => { touch.start(points(e)); sync(); }}
-          onTouchMove={(e) => { touch.move(points(e)); sync(); }}
-          onTouchEnd={(e) => { touch.end(points(e)); sync(); }}
-          onTouchCancel={(e) => { touch.end(points(e)); sync(); }}
-        />
-      )}
-      {playing && (
-        <Hud game={game} buttons={buttonZones(width, height)} joystick={joystick} onPause={onPause}
-          onPromptChange={(hasPrompt) => touch.setUseEnabled(hasPrompt)} />
-      )}
+      {playing && <Controls touch={touch} buttons={buttons} useEnabled={useEnabled} onStick={sync} />}
+      {playing && <Hud game={game} buttons={buttons} joystick={joystick} onPause={onPause} onPromptChange={setUseEnabled} />}
     </View>
   );
 }

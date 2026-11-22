@@ -1,7 +1,8 @@
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Game } from './src/engine/game';
 import { LEVELS } from './src/levels';
 import {
@@ -73,7 +74,7 @@ export default function App() {
   const mode: ViewMode = screen === 'playing' ? 'play' : screen === 'paused' ? 'frozen' : 'idle';
 
   return (
-    <View style={styles.root}>
+    <GestureHandlerRootView style={styles.root}>
       <StatusBar hidden />
       <GameView game={game} mode={mode} onPause={pause} />
 
@@ -103,7 +104,7 @@ export default function App() {
         <LevelComplete title={complete.title} hasNext={complete.hasNext} onMenu={toMenu}
           onNext={() => startLevel(game.levelIndex + 1)} />
       )}
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
