@@ -8,6 +8,11 @@ import { runAutopilot, type Step } from './autopilot';
 import { InputState } from '../src/engine/input';
 import { TouchController } from '../src/ui/touchController';
 import { createRenderer, type GLLike } from '../src/ui/renderer';
+import fs from 'node:fs';
+import path from 'node:path';
+import * as THREE from 'three';
+import { SkinnedCharacter, applyTextures, decodeLwtex, parseGlb, retargetClips } from '../src/models/skinnedCharacter';
+import type { TextureSlot } from '../src/models/types';
 
 let failures = 0;
 const results: string[] = [];
@@ -278,6 +283,54 @@ for (const [i, def] of LEVELS.entries()) {
     `objective=${g2.missions.currentId} ${r2.log.join('; ')}`);
 }
 
-console.log(results.join('\n'));
-console.log(`\n${results.length - failures}/${results.length} passed`);
-process.exit(failures ? 1 : 0);
+// ------------------------------------------------------------ rigged character models (if installed)
+async function modelTests() {
+  const dir = 'assets/models';
+  if (!fs.existsSync(path.join(dir, 'jason.glb'))) {
+    results.push('SKIP  character models not installed (run tools/prepare-models.mjs)');
+    return;
+  }
+  const toAB = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+  const load = async (name: string) => {
+    const { scene, animations } = await parseGlb(toAB(fs.readFileSync(path.join(dir, `${name}.glb`))));
+    const textures: Record<string, Partial<Record<TextureSlot, THREE.Texture>>> = {};
+    for (const f of fs.readdirSync(dir).filter((x) => x.startsWith(`${name}.`) && x.endsWith('.lwtex'))) {
+      const [, material, slot] = f.slice(0, -'.lwtex'.length).split('.');
+      (textures[material] ??= {})[slot as TextureSlot] = decodeLwtex(toAB(fs.readFileSync(path.join(dir, f))), slot as TextureSlot);
+    }
+    applyTextures(scene, textures);
+    return { scene, animations, textured: Object.keys(textures).length };
+  };
+  const bonesMoved = (c: SkinnedCharacter) => {
+    const bones: THREE.Bone[] = [];
+    c.group.traverse((o) => { if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone); });
+    const before = bones.map((b) => b.quaternion.clone());
+    for (let i = 0; i < 30; i++) c.update(1 / 30, 5.5, true, 0); // run for 1 s
+    return bones.filter((b, i) => b.quaternion.angleTo(before[i]) > 0.02).length;
+  };
+  const measure = (c: SkinnedCharacter) => {
+    c.group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(c.group);
+    return { h: box.max.y - box.min.y, feet: box.min.y };
+  };
+  const j = await load('jason');
+  const jason = new SkinnedCharacter(j.scene, j.animations, 1.8);
+  const jm = measure(jason), jMoved = bonesMoved(jason);
+  check('models: Jason loads with textures and Idle/Walk/Run', j.textured > 0 && jason.hasAnimations, `${j.animations.map((a) => a.name).join(',')}`);
+  check('models: Jason is 1.8 m tall, feet on the ground', Math.abs(jm.h - 1.8) < 0.05 && Math.abs(jm.feet) < 0.05, `h=${jm.h.toFixed(2)} feet=${jm.feet.toFixed(2)}`);
+  check('models: Jason\'s run animation moves his bones', jMoved > 10, `${jMoved} bones moved`);
+  if (fs.existsSync(path.join(dir, 'elena.glb'))) {
+    const e = await load('elena');
+    const elena = new SkinnedCharacter(e.scene, e.animations.length ? e.animations : retargetClips(j.animations), 1.68);
+    const em = measure(elena), eMoved = bonesMoved(elena);
+    check('models: Elena is 1.68 m tall, feet on the ground', Math.abs(em.h - 1.68) < 0.05 && Math.abs(em.feet) < 0.05, `h=${em.h.toFixed(2)} feet=${em.feet.toFixed(2)}`);
+    check('models: Jason\'s animations drive Elena\'s skeleton', eMoved > 10, `${eMoved} bones moved`);
+  }
+}
+
+modelTests().catch((e) => check('models: load without errors', false, String(e))).finally(() => {
+  console.log(results.join('\n'));
+  console.log(`\n${results.length - failures}/${results.length} passed`);
+  process.exit(failures ? 1 : 0);
+
+});

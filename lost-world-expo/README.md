@@ -27,6 +27,32 @@ Android works the same way: install Expo Go from Google Play and scan the QR cod
 Desktop preview: `npx expo start --web`, then press `w`. Keyboard: WASD or arrows to move, Shift to walk,
 Space to jump, E to use, Esc to pause, and drag the mouse to turn the camera.
 
+## Realistic characters from Mixamo (free)
+
+The game ships with built-in characters. To use lifelike, motion-captured characters instead, download them
+from Mixamo (free with an Adobe account) and run one command. Mixamo files may be used in your game but not
+redistributed as raw files, so they stay out of git (`assets/models/` is ignored).
+
+1. Go to **mixamo.com** and sign in.
+2. **Characters** tab: pick the character for Jason. Click **Download**: Format **FBX Binary (.fbx)**,
+   Pose **T-pose**, then save it as `Downloads/mixamo/jason/Jason.fbx`.
+3. **Animations** tab, with that character still selected, download each of these with Skin **Without Skin**
+   into the same folder. Tick **In Place** where Mixamo offers it:
+   - an idle, saved with "idle" in the name (`Idle.fbx`)
+   - a walk (`Walking.fbx`)
+   - a run (`Running.fbx`)
+   - a jump (`Jumping.fbx`, optional)
+4. Repeat for Elena into `Downloads/mixamo/elena/`.
+5. In Terminal:
+   ```bash
+   cd ~/Downloads/lost-world-expo
+   node tools/prepare-models.mjs jason ~/Downloads/mixamo/jason elena ~/Downloads/mixamo/elena
+   npx expo start --clear
+   ```
+
+The script converts the FBX files in plain JavaScript and writes them to `assets/models/`. On the next start the
+game uses them automatically, blending idle, walk, run and jump with your speed.
+
 ## Controls (touch)
 
 | Action | How |
@@ -37,7 +63,7 @@ Space to jump, E to use, Esc to pause, and drag the mouse to turn the camera.
 | Interact | **USE** button (appears when something is in front of you) |
 | Pause | **II**, top right |
 
-Moving, jumping and turning the camera all work at the same time (multi-touch).
+The MOVE stick sits bottom-left. Moving, jumping and turning the camera all work at the same time (multi-touch).
 
 ## Levels
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { CharacterVisual } from '../models/skinnedCharacter';
 import { ELENA, Humanoid, JASON } from './humanoid';
 import type { InputState } from './input';
 import { CharacterBody, type Physics, type Vec3 } from './physics';
@@ -12,8 +13,11 @@ const angleLerp = (from: number, to: number, k: number) => {
 
 export class Player {
   readonly body: CharacterBody;
-  readonly figure = new Humanoid(JASON);
-  readonly mesh = this.figure.group;
+  /** Built-in figure until a rigged model is loaded (setVisual). */
+  figure: CharacterVisual = new Humanoid(JASON);
+  get mesh() { return this.figure.group; }
+
+  setVisual(v: CharacterVisual) { this.figure = v; this.sync(); }
   yaw = 0;
   controlsEnabled = true;
 
@@ -81,8 +85,10 @@ export type CompanionState = 'waiting' | 'following' | 'scripted';
  */
 export class Companion {
   readonly body: CharacterBody;
-  readonly figure = new Humanoid(ELENA);
-  readonly mesh = this.figure.group;
+  figure: CharacterVisual = new Humanoid(ELENA);
+  get mesh() { return this.figure.group; }
+
+  setVisual(v: CharacterVisual) { this.figure = v; this.sync(); }
   yaw = 0;
   state: CompanionState = 'waiting';
   private target: Vec3 | null = null;

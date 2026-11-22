@@ -5,6 +5,7 @@ import { Companion, OrbitCamera, Player } from './characters';
 import { Emitter } from './events';
 import { InputState } from './input';
 import type { Interactable, MechanicContext } from './mechanics';
+import type { CharacterVisual } from '../models/skinnedCharacter';
 import { MissionManager } from './missions';
 import { SkyDome } from './sky';
 import { v3, type Vec3 } from './physics';
@@ -94,6 +95,12 @@ export class Game extends Emitter<GameEvents> {
       this.setHud({ objective: 'Level complete', prompt: null });
       this.emit('levelComplete', LEVELS[this.levelIndex].title, hasNext);
     });
+  }
+
+  /** Swap in rigged character models (e.g. Mixamo) once they've loaded; either may be omitted. */
+  setCharacterVisuals(jason?: CharacterVisual, elena?: CharacterVisual) {
+    if (jason) { this.scene.remove(this.player.mesh); this.player.setVisual(jason); this.scene.add(this.player.mesh); }
+    if (elena) { this.scene.remove(this.companion.mesh); this.companion.setVisual(elena); this.scene.add(this.companion.mesh); }
   }
 
   get levelCount() { return LEVELS.length; }

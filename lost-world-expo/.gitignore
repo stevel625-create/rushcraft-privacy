@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Character models prepared by tools/prepare-models.mjs (Mixamo assets: not for redistribution)
+assets/models/

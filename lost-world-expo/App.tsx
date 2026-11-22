@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Game } from './src/engine/game';
+import { loadCharacterModels } from './src/models/loadModels';
 import { LEVELS } from './src/levels';
 import {
   deleteSave, readMockOwned, readSave, readUnlocked, resetMockOwned, resetUnlocks, setMockOwned, unlockThrough, writeSave,
@@ -36,6 +37,10 @@ export default function App() {
     readUnlocked().then(setUnlocked);
     readMockOwned(PRODUCTS.map((p) => p.id)).then(setOwned);
     if (Platform.OS === 'web') (globalThis as { __lostWorld?: Game }).__lostWorld = game; // automated browser tests
+    // Rigged character models (if installed with tools/prepare-models.mjs) replace the built-in figures.
+    loadCharacterModels()
+      .then((c) => { if (c) game.setCharacterVisuals(c.jason, c.elena); console.log('[LostWorld] character models:', c ? Object.keys(c).join(', ') : 'none installed'); })
+      .catch((e) => console.warn('[LostWorld] character models failed to load, using built-in figures:', e));
   }, [game]);
 
   useEffect(() => {
