@@ -1,0 +1,41 @@
+{
+  "game": "The Garbage Man",
+  "status": "design_only_not_live",
+  "purchaseType": "non-consumable",
+  "currencyBundles": false,
+  "subscriptions": false,
+  "products": [
+    {
+      "id": "com.thegarbageman.quietboots",
+      "name": "Quiet work boots",
+      "proposedUSD": "0.99",
+      "description": "Permanently reduce movement noise radius by 15% in stealth sections.",
+      "entitlement": "quiet_boots",
+      "effect": {"movementNoiseRadiusMultiplier": 0.85}
+    },
+    {
+      "id": "com.thegarbageman.fieldkit",
+      "name": "Expanded field kit",
+      "proposedUSD": "1.99",
+      "description": "Permanently carry one additional optional gadget. Evidence never occupies gadget slots.",
+      "entitlement": "expanded_field_kit",
+      "effect": {"additionalGadgetSlots": 1}
+    },
+    {
+      "id": "com.thegarbageman.workjacket",
+      "name": "Reinforced work jacket",
+      "proposedUSD": "1.99",
+      "description": "Withstand one additional nonfatal impact per mission. Does not change scripted outcomes.",
+      "entitlement": "reinforced_work_jacket",
+      "effect": {"additionalNonfatalHitsPerMission": 1}
+    }
+  ],
+  "checkout": {
+    "priceSource": "native_store_localized_price",
+    "requireServerVerification": true,
+    "restorePurchases": true,
+    "duplicatePurchases": "prevent",
+    "unlockPolicy": "permanent_entitlement_after_verified_purchase",
+    "availability": "between_missions"
+  }
+}

@@ -1,0 +1,10 @@
+import React,{useState} from 'react';
+import {Text,TextInput,View} from 'react-native';
+const {findNotes}=require('./notebook');
+export default function CaseNotebook({ids,Label,Button,s,onReturn}){
+ const [query,setQuery]=useState(''),[newestFirst,setNewestFirst]=useState(false);
+ const all=findNotes(ids),notes=findNotes(ids,query,newestFirst);
+ return <><View style={[s.card,{marginTop:20}]}><Label>SEARCH RECORDED EVIDENCE</Label><Text style={s.body}>Find a name, place, detail or source label. Only evidence already in your notebook is searched.</Text><TextInput accessibilityLabel="Search case notes" value={query} onChangeText={setQuery} placeholder="Name, place or source…" placeholderTextColor="#9ca699" autoCorrect={false} autoCapitalize="none" returnKeyType="search" maxLength={160} style={[s.body,{color:'#e5e2cd',borderWidth:1,borderColor:'#65745f',padding:14,marginVertical:16,borderRadius:4,minHeight:48}]}/>{query.length>0&&<><Button secondary onPress={()=>setQuery('')}>CLEAR NOTE SEARCH</Button><View style={{height:12}}/></>}<Button secondary onPress={()=>setNewestFirst(value=>!value)}>NEWEST FIRST · {newestFirst?'ON':'OFF'}</Button><Text style={[s.caption,{marginTop:14}]}>Order follows when you recorded the note, not the date of its source. Search and sorting do not alter saved evidence.</Text></View><Button secondary onPress={onReturn}>BACK TO THE GAME</Button><View style={{height:20}}/><View accessibilityLiveRegion="polite"><Label>{notes.length} OF {all.length} RECORDED NOTES</Label></View>
+ {!all.length?<View style={s.card}><Text style={s.body}>No evidence recorded. Begin on Cedar Street.</Text></View>:!notes.length?<View style={s.card}><Text style={s.cardTitle}>No matching recorded notes.</Text><Text style={s.body}>Try fewer words or clear the search. Unseen story evidence is never added by searching.</Text></View>:notes.map(note=><View key={note.id} style={s.card}><Label>{note.type}</Label><Text style={s.cardTitle}>{note.title}</Text><Text style={s.body}>{note.text}</Text></View>)}
+ </>;
+}

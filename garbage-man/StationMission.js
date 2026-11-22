@@ -1,0 +1,55 @@
+import React from 'react';
+import {Pressable,Text,View} from 'react-native';
+const paper='#e5e2cd',gold='#c9b77c';
+function LockerWall({onOpen=()=>{},interactive=false}){return <View style={{height:235,backgroundColor:'#334238',padding:18,marginVertical:22,borderRadius:5}}><Text style={{color:'#b9c1a8',fontSize:8,letterSpacing:2,marginBottom:16}}>OLD PARCEL LOCKERS / EMPLOYEE SIDE</Text><View style={{flexDirection:'row',gap:10,flex:1}}>{[243,247,249].map(number=><Pressable key={number} accessibilityRole={interactive?'button':undefined} accessibilityLabel={'Open locker '+number} disabled={!interactive} onPress={()=>onOpen(number)} style={{flex:1,backgroundColor:number===247?'#74806a':'#566553',borderWidth:3,borderColor:'#8c967d',padding:10,justifyContent:'space-between'}}><View style={{gap:4}}>{[0,1,2].map(i=><View key={i} style={{height:2,backgroundColor:'#384b3b'}}/>)}</View><View style={{alignItems:'center'}}><Text style={{color:paper,fontSize:20,fontFamily:'Georgia'}}>{number}</Text><View style={{width:13,height:6,backgroundColor:'#313e32',marginTop:12,marginBottom:35}}/></View></Pressable>)}</View></View>;}
+export default function StationMission({state,send,inspect,Button,Label,s,onNotebook,onReplay}){
+ const arrival=state.stage==='station_arrival',locker=state.stage==='station_locker',phone=state.stage==='station_phone',files=state.stage==='station_files';
+ const catalog=[['read_first','READ FIRST'],['harbor_ledger','LEDGER'],['harbor_audio','AUDIO'],['harbor_accounts','ACCOUNTS']];
+ const ready=catalog.every(([id])=>state.clues.includes(id));
+ return <>
+  <Label>SCENE 07 · {arrival?'UNION STATION':locker?'LOCKER 247':phone?'THE UNSENT DRAFT':files?'THE PARTIAL ARCHIVE':'CASE NOTE 007'}</Label>
+  <View style={{marginTop:12}}><Label>PLAY AS MALCOLM GRAVES</Label></View>
+  <Text style={s.title}>{arrival?'The search is\nalready here.':locker?'The locker\nyou came for.':phone?'A message that\nnever left.':files?'More than\na name on a sleeve.':'Hanover.\nBefore it is too late.'}</Text>
+  {arrival?<>
+   <Text style={s.body}>Mara stands before the train doors open. You separate through the passenger flow, then find each other on the mezzanine. The main doors are watched. Beyond the kiosks, the baggage level has public lockers—and two men who do not belong to its ordinary rhythm.</Text>
+   <LockerWall/>
+   <View style={s.card}><Label>WHAT DOES NOT FIT?</Label><Text style={s.body}>A maintenance vest beside a cabinet. A man holding a phone receiver. The phone’s cord hangs severed. The public locker numbers nearby do not include 247.</Text></View>
+   <Pressable accessibilityRole="button" accessibilityLabel="Inspect the severed phone cord" onPress={()=>inspect('station_watchers')} style={s.clueButton}><Text style={{color:paper}}>{state.clues.includes('station_watchers')?'✓':'＋'}  The severed phone cord</Text><Text style={{color:gold}}>↗</Text></Pressable>
+   <View style={{height:18}}/>
+   {state.stationError==='public'&&<Text accessibilityLiveRegion="polite" style={s.notice}>The number is not on this public wall, and the men are watching it. The old employee-side lockers are the lead to follow.</Text>}
+   <Button disabled={!state.clues.includes('station_watchers')} onPress={()=>send({type:'station_route',id:'employee'})}>FIND THE EMPLOYEE-SIDE LOCKERS</Button><View style={{height:12}}/><Button secondary disabled={!state.clues.includes('station_watchers')} onPress={()=>send({type:'station_route',id:'public'})}>KEEP SEARCHING THE PUBLIC WALL</Button>
+  </>:locker?<>
+   <Text style={s.body}>The service route becomes a pursuit. An alarm, a loading platform, a stalled lift and an old catwalk pass in a blur. Mara stays with you through the gunfire. Beyond a blue door, the forgotten parcel room holds the numbers the public wall did not.</Text>
+   <LockerWall interactive onOpen={number=>send({type:'station_open',id:number})}/>
+   <View style={s.card}><Label>YOUR CARRIED KEY</Label><Text style={s.cardTitle}>Red tag · 247</Text><Text style={s.body}>You pass the key to Mara. The old faceplate resists, then gives. Choose the matching locker to follow the key.</Text></View>
+   {state.stationError==='number'&&<Text accessibilityLiveRegion="polite" style={s.notice}>That number does not match the red tag. Use the key’s destination: 247.</Text>}
+   {state.stationError==='key'&&<Text accessibilityLiveRegion="polite" style={s.notice}>The carried key is missing from this save. A valid completed escape keeps it with the notebook and passport. Check your earlier progress before continuing.</Text>}
+  </>:phone?<>
+   <Text style={s.body}>A canvas satchel slumps out of the locker. Inside: a cheap phone, a wrapped pistol and a flash drive. BLACK HARBOR is written on its sleeve. You recognize the handwriting before you can explain why. Mara takes the drive as you leave the room under pursuit.</Text>
+   {!state.phoneUnlocked?<>
+    <View style={{marginVertical:22,padding:22,backgroundColor:'#28332a',borderWidth:7,borderColor:'#52604b',borderRadius:15}}><Text style={{fontSize:9,color:'#adb88f',letterSpacing:1.5}}>OLD HANDSET · OFFLINE</Text><View style={{padding:22,backgroundColor:'#aeb98a',marginTop:15,borderRadius:3}}><Text style={{color:'#293d26',fontSize:12,textAlign:'center'}}>ENTER FOUR DIGITS</Text><Text accessibilityLiveRegion="polite" style={{color:'#293d26',fontSize:28,letterSpacing:10,textAlign:'center',marginTop:12}}>{state.phoneCode.padEnd(4,'_')}</Text></View>
+    <View style={{gap:8,marginTop:18}}>{[['1','2','3'],['4','5','6'],['7','8','9'],['0']].map((row,i)=><View key={i} style={{flexDirection:'row',justifyContent:'center',gap:8}}>{row.map(digit=><Pressable key={digit} accessibilityRole="button" accessibilityLabel={'Phone digit '+digit} disabled={state.phoneCode.length===4} onPress={()=>send({type:'phone_digit',id:digit})} style={{width:60,padding:15,alignItems:'center',backgroundColor:'#46543f',borderRadius:4}}><Text style={{color:paper,fontSize:16}}>{digit}</Text></Pressable>)}</View>)}</View></View>
+    {state.stationError==='phone'&&<Text accessibilityLiveRegion="polite" style={s.notice}>The old sequence returns: 2, 4, 7, 1. Clear the entry and use it, or let Malcolm recall it directly.</Text>}
+    <Button disabled={state.phoneCode.length!==4} onPress={()=>send({type:'phone_unlock'})}>OPEN THE HANDSET</Button><View style={{height:12}}/><Button secondary onPress={()=>send({type:'phone_clear'})}>CLEAR THE DIGITS</Button><View style={{height:12}}/><Button secondary onPress={()=>send({type:'phone_recall'})}>LET THE FAMILIAR SEQUENCE RETURN</Button>
+   </>:<>
+    <View style={[s.card,{backgroundColor:'#29372b',borderColor:gold}]}><Label>DRAFTS · UNSENT</Label><Text style={[s.body,{color:paper,marginTop:14}]}>IF BOX IS OPEN I FAILED. DO NOT TRUST DIRECTORATE CHANNELS. BLACK HARBOR IS INSIDE ROURKE.</Text><Text style={[s.body,{color:paper,marginTop:14}]}>IF MARA KESSLER IS ALIVE TELL HER I WAS LATE.</Text></View>
+    <Text style={[s.body,{marginBottom:22}]}>Mara reads over your shoulder. You put the handset away. The next door gives under the pursuit. A cable tunnel and a recessed ladder bring you to an old maintenance office, where Mara finds a tablet and connects the drive.</Text><Button onPress={()=>send({type:'station_reach_room'})}>EXAMINE THE DRIVE →</Button>
+   </>}
+  </>:files?<>
+   <Text style={s.body}>The hatch shakes below your feet. On the maintenance tablet, a file tree appears. READ FIRST sits above three folders. Start with the author’s warning, then compare the records that survived.</Text>
+   <View style={[s.card,{backgroundColor:'#192b22'}]}><Label>BLACK HARBOR · RECOVERED FILES</Label><View style={{height:14}}/>{catalog.map(([id,name])=><Pressable key={id} accessibilityRole="button" accessibilityLabel={'Open archive '+name} disabled={id!=='read_first'&&!state.clues.includes('read_first')} onPress={()=>inspect(id)} style={[s.clueButton,{opacity:id!=='read_first'&&!state.clues.includes('read_first')?0.35:1}]}><Text style={{fontFamily:'monospace',color:paper,fontSize:14}}>{state.clues.includes(id)?'✓ ':'▸ '}{name}</Text></Pressable>)}</View>
+   {state.clues.includes('read_first')&&<View style={s.card}><Label>THE ARCHIVED WARNING</Label><Text style={s.body}>The author describes a sale channel: private buyers, off-book transfers and live identities. The copy was made before Kars. That claim needs the supporting records.</Text></View>}
+   {state.clues.includes('harbor_ledger')&&<View style={s.card}><Label>LEDGER</Label><Text style={s.body}>Names, dates, payments and operational designators appear together. NR authorizes repeated entries.</Text></View>}
+   {state.clues.includes('harbor_audio')&&<View style={s.card}><Label>AUDIO · TRANSCRIPT EXCERPT</Label><Text style={s.dialogue}>“I want him contained, not traded.”</Text><Text style={s.body}>Mara identifies the voice as Rourke’s. The record is more specific than Keane’s account, but the archive still has gaps.</Text></View>}
+   {state.clues.includes('harbor_accounts')&&<View style={s.card}><Label>ACCOUNTS</Label><Text style={s.body}>Scanned transfers and another handwritten note connect the channel to Rourke. Mara finds missing linked records. This is not all of it.</Text></View>}
+   {ready&&<Text style={s.notice}>Lena is on paper too: Hanover Street. Emergency contact. Your wife. You have evidence—and someone who may become leverage.</Text>}
+   {state.stationError==='channels'&&<Text accessibilityLiveRegion="polite" style={s.notice}>The unsent draft warns against Directorate channels. Using them now could expose the people and evidence you are trying to protect.</Text>}
+   <View style={{height:18}}/><Button disabled={!ready} onPress={()=>send({type:'station_priority',id:'lena'})}>KEEP THE DRIVE. GET BACK TO LENA.</Button><View style={{height:12}}/><Button secondary disabled={!ready} onPress={()=>send({type:'station_priority',id:'channels'})}>SEND IT THROUGH DIRECTORATE CHANNELS</Button>
+  </>:<>
+   <Text style={s.body}>Mara secures the drive and handset. You leave by the south arcade before the hatch gives. The evidence is incomplete, but the next place is not a mystery. Hanover.</Text>
+   <View style={[s.card,{borderLeftWidth:3,borderLeftColor:gold}]}><Label>CASE UPDATE</Label><Text style={s.cardTitle}>Black Harbor is real evidence.</Text><Text style={s.body}>A labeled drive became a partial archive, supported by records and a voice Mara recognizes. Lena is still outside your sight. She is no longer outside the risk.</Text></View>
+   <View style={s.card}><Label>NEXT IN THE MANUSCRIPT</Label><Text style={s.cardTitle}>The Wife Who Buried Him</Text><Text style={s.body}>Hanover Street has its own watchers. You need to reach Lena.</Text><Text style={[s.caption,{marginTop:12}]}>READY TO CONTINUE.</Text></View>
+   <Button onPress={()=>send({type:'start_wife'})}>CONTINUE TO THE WIFE WHO BURIED HIM →</Button><View style={{height:12}}/><Button secondary onPress={onNotebook}>REVIEW THE BLACK HARBOR EVIDENCE</Button><View style={{height:12}}/><Button secondary onPress={onReplay}>REPLAY ALL SEVEN SCENES</Button>
+  </>}
+ </>;
+}
