@@ -17,8 +17,14 @@ namespace LostWorld.UI
     {
         public event Action SaveRequested;
         public event Action MainMenuRequested;
+        public event Action NextLevelRequested;
 
-        Text _mission, _prompt, _toast;
+        Text _mission, _prompt, _toast, _levelLabel, _completeTitle;
+        GameObject _completePanel;
+        Button _nextButton;
+        Text _nextLabel;
+        string _objectiveTitle;
+        bool _toastIsMessage;
         Button _jump, _interact, _pause;
         GameObject _pausePanel;
         float _toastTimer;
@@ -39,18 +45,26 @@ namespace LostWorld.UI
         void OnEnable()
         {
             InteractionDetector.CurrentChanged += OnInteractableChanged;
-            if (MissionManager.Instance != null)
+            WorldMessage.Shown += OnWorldMessage;
+            var mm = MissionManager.Instance;
+            if (mm != null)
             {
-                MissionManager.Instance.MissionStarted += OnMissionStarted;
-                OnMissionStarted(MissionManager.Instance.Current);
+                mm.ObjectiveStarted += OnObjectiveStarted;
+                mm.ProgressChanged += OnProgress;
+                if (mm.Current != null) OnObjectiveStarted(mm.Current);
             }
         }
 
         void OnDisable()
         {
             InteractionDetector.CurrentChanged -= OnInteractableChanged;
-            if (MissionManager.Instance != null)
-                MissionManager.Instance.MissionStarted -= OnMissionStarted;
+            WorldMessage.Shown -= OnWorldMessage;
+            var mm = MissionManager.Instance;
+            if (mm != null)
+            {
+                mm.ObjectiveStarted -= OnObjectiveStarted;
+                mm.ProgressChanged -= OnProgress;
+            }
         }
 
         void Update()
@@ -82,6 +96,7 @@ namespace LostWorld.UI
         {
             _toast.text = message;
             _toastTimer = seconds;
+            _toastIsMessage = false;
         }
 
         public void SetPaused(bool paused)
@@ -89,12 +104,37 @@ namespace LostWorld.UI
             _pausePanel.SetActive(paused);
         }
 
-        void OnMissionStarted(MissionId id)
+        public void SetLevelLabel(string text) => _levelLabel.text = text;
+
+        public void ShowLevelComplete(string levelTitle, bool hasNext)
         {
-            _mission.text = id == MissionId.Complete
-                ? "Chapter 1 complete"
-                : $"<size=60%>OBJECTIVE</size>\n{MissionData.Title(id)}";
-            if (id != MissionId.FindElena && id != MissionId.Complete) Toast("Objective updated");
+            _mission.text = "<size=60%>OBJECTIVE</size>\nLevel complete";
+            _completeTitle.text = hasNext
+                ? $"{levelTitle}\n<size=55%>LEVEL COMPLETE</size>"
+                : $"{levelTitle}\n<size=55%>THE ADVENTURE IS COMPLETE</size>";
+            _nextLabel.text = hasNext ? "NEXT LEVEL" : "MAIN MENU";
+            _completePanel.SetActive(true);
+        }
+
+        public void HideLevelComplete() => _completePanel.SetActive(false);
+
+        void OnObjectiveStarted(ObjectiveDef o)
+        {
+            _objectiveTitle = o.Title;
+            _mission.text = $"<size=60%>OBJECTIVE</size>\n{o.Title}";
+            // Don't stomp story text (logbook, relic) that was shown in the same moment; the banner still updates.
+            if (!(_toastIsMessage && _toastTimer > 0f)) Toast(o.Title, 3f);
+        }
+
+        void OnProgress(ObjectiveDef o, int current, int total)
+        {
+            _mission.text = $"<size=60%>OBJECTIVE</size>\n{_objectiveTitle ?? o.Title} ({current}/{total})";
+        }
+
+        void OnWorldMessage(string message)
+        {
+            Toast(message, 4f);
+            _toastIsMessage = true;
         }
 
         void OnInteractableChanged(Interactable it)
@@ -139,12 +179,35 @@ namespace LostWorld.UI
             _pause = MakeButton("Pause", _canvas.transform, new Vector2(1, 1), new Vector2(-120, -80), 140, "II",
                 () => PauseToggled?.Invoke());
 
+            _levelLabel = MakeText("LevelLabel", _canvas.transform, TextAnchor.UpperCenter,
+                new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -30), new Vector2(900, 50), 28);
+            _levelLabel.color = new Color(1f, 1f, 1f, 0.75f);
+
             _interact.gameObject.SetActive(false);
             _joyBase = MakeCircle("JoyBase", 240, new Color(1, 1, 1, 0.18f));
             _joyKnob = MakeCircle("JoyKnob", 110, new Color(1, 1, 1, 0.45f));
             _joyBase.gameObject.SetActive(false);
             _joyKnob.gameObject.SetActive(false);
             BuildPausePanel();
+            BuildLevelCompletePanel();
+        }
+
+        void BuildLevelCompletePanel()
+        {
+            _completePanel = new GameObject("LevelCompletePanel", typeof(RectTransform), typeof(Image));
+            _completePanel.transform.SetParent(_canvas.transform, false);
+            var rt = (RectTransform)_completePanel.transform;
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
+            _completePanel.GetComponent<Image>().color = new Color(0.02f, 0.05f, 0.03f, 0.8f);
+
+            _completeTitle = MakeText("Title", rt, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.62f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(1400, 220), 72);
+            _nextButton = MakeButton("Next", rt, new Vector2(0.5f, 0.38f), Vector2.zero, 0, "NEXT LEVEL",
+                () => NextLevelRequested?.Invoke(), new Vector2(420, 100));
+            _nextLabel = _nextButton.GetComponentInChildren<Text>();
+            MakeButton("Menu", rt, new Vector2(0.5f, 0.25f), Vector2.zero, 0, "MAIN MENU",
+                () => MainMenuRequested?.Invoke(), new Vector2(420, 100));
+            _completePanel.SetActive(false);
         }
 
         public event Action PauseToggled;

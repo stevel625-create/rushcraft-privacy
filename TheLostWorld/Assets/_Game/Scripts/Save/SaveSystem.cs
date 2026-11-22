@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using LostWorld.Missions;
 using UnityEngine;
 
 namespace LostWorld.Save
@@ -8,35 +7,31 @@ namespace LostWorld.Save
     [Serializable]
     public class SaveData
     {
-        public int version = 1;
-        public int missionIndex;
+        public int version = 2;
+        public int levelIndex;      // 0-based index into LevelCatalog
+        public int objectiveIndex;  // objectives already completed in that level
         public float[] playerPosition = new float[3];
         public float playerYaw;
-        public bool puzzleSolved;
         public string savedAtUtc;
     }
 
     /// <summary>
-    /// Local JSON save with a single checkpoint slot. Writes to Application.persistentDataPath.
+    /// Local JSON checkpoint (one slot) in Application.persistentDataPath.
     /// All file IO is wrapped in try/catch so a bad disk never crashes gameplay.
     /// </summary>
     public static class SaveSystem
     {
-        const string FileName = "chapter1_save.json";
-        static string Path => System.IO.Path.Combine(Application.persistentDataPath, FileName);
+        const string FileName = "lostworld_save.json";
+        static string FilePath => Path.Combine(Application.persistentDataPath, FileName);
 
-        public static bool HasSave()
-        {
-            try { return File.Exists(Path); }
-            catch (Exception e) { Debug.LogWarning($"[Save] HasSave failed: {e.Message}"); return false; }
-        }
+        public static bool HasSave() => Read() != null;
 
         public static bool Write(SaveData data)
         {
             try
             {
                 data.savedAtUtc = DateTime.UtcNow.ToString("o");
-                File.WriteAllText(Path, JsonUtility.ToJson(data, true));
+                File.WriteAllText(FilePath, JsonUtility.ToJson(data, true));
                 return true;
             }
             catch (Exception e)
@@ -46,12 +41,14 @@ namespace LostWorld.Save
             }
         }
 
+        /// <summary>Returns null when there is no save, or when it is unreadable or from an older format.</summary>
         public static SaveData Read()
         {
             try
             {
-                if (!File.Exists(Path)) return null;
-                return JsonUtility.FromJson<SaveData>(File.ReadAllText(Path));
+                if (!File.Exists(FilePath)) return null;
+                var d = JsonUtility.FromJson<SaveData>(File.ReadAllText(FilePath));
+                return d != null && d.version == 2 ? d : null;
             }
             catch (Exception e)
             {
@@ -62,24 +59,56 @@ namespace LostWorld.Save
 
         public static void Delete()
         {
-            try { if (File.Exists(Path)) File.Delete(Path); }
+            try { if (File.Exists(FilePath)) File.Delete(FilePath); }
             catch (Exception e) { Debug.LogWarning($"[Save] Delete failed: {e.Message}"); }
         }
 
-        public static SaveData Capture(MissionId mission, Vector3 pos, float yaw, bool puzzleSolved)
+        public static SaveData Capture(int level, int objective, Vector3 pos, float yaw) => new SaveData
         {
-            return new SaveData
-            {
-                missionIndex = (int)mission,
-                playerPosition = new[] { pos.x, pos.y, pos.z },
-                playerYaw = yaw,
-                puzzleSolved = puzzleSolved
-            };
-        }
+            levelIndex = level,
+            objectiveIndex = objective,
+            playerPosition = new[] { pos.x, pos.y, pos.z },
+            playerYaw = yaw
+        };
 
         public static Vector3 PositionOf(SaveData d) =>
             d.playerPosition != null && d.playerPosition.Length == 3
                 ? new Vector3(d.playerPosition[0], d.playerPosition[1], d.playerPosition[2])
                 : Vector3.zero;
+    }
+
+    /// <summary>Which levels are unlocked. Kept apart from the checkpoint so erasing a save keeps unlocks.</summary>
+    public static class ProgressStore
+    {
+        const string Key = "lw_unlocked_levels";
+
+        /// <summary>Number of unlocked levels (always at least 1).</summary>
+        public static int UnlockedCount
+        {
+            get
+            {
+                try { return Mathf.Max(1, PlayerPrefs.GetInt(Key, 1)); }
+                catch { return 1; }
+            }
+        }
+
+        public static bool IsUnlocked(int levelIndex) => levelIndex < UnlockedCount;
+
+        public static void UnlockThrough(int levelIndex)
+        {
+            try
+            {
+                if (levelIndex + 1 <= UnlockedCount) return;
+                PlayerPrefs.SetInt(Key, levelIndex + 1);
+                PlayerPrefs.Save();
+            }
+            catch (Exception e) { Debug.LogWarning($"[Progress] Save failed: {e.Message}"); }
+        }
+
+        public static void ResetAll()
+        {
+            try { PlayerPrefs.DeleteKey(Key); PlayerPrefs.Save(); }
+            catch (Exception e) { Debug.LogWarning($"[Progress] Reset failed: {e.Message}"); }
+        }
     }
 }

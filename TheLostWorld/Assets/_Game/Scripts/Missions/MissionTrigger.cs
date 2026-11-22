@@ -4,23 +4,15 @@ using UnityEngine;
 namespace LostWorld.Missions
 {
     /// <summary>
-    /// Place on a trigger volume. When Jason enters while <see cref="mission"/> is active,
-    /// that mission completes. Set <see cref="oneShot"/> to ignore re-entry.
+    /// Trigger volume that completes an objective when Jason is inside it while that objective is active.
+    /// Uses OnTriggerStay, so it also fires if Jason is already standing in it when the objective starts.
     /// </summary>
     [RequireComponent(typeof(Collider))]
     public class MissionTrigger : MonoBehaviour
     {
-        [SerializeField] MissionId mission = MissionId.FindElena;
-        [SerializeField] bool oneShot = true;
+        [SerializeField] string objectiveId;
 
-        bool _fired;
-
-        /// <summary>Set the mission from code (used by JungleBuilder when generating triggers).</summary>
-        public void Configure(MissionId id, bool once = true)
-        {
-            mission = id;
-            oneShot = once;
-        }
+        public void Configure(string id) => objectiveId = id;
 
         void Reset()
         {
@@ -28,13 +20,12 @@ namespace LostWorld.Missions
             if (c) c.isTrigger = true;
         }
 
-        void OnTriggerEnter(Collider other)
+        void OnTriggerStay(Collider other)
         {
-            if (_fired && oneShot) return;
+            var mm = MissionManager.Instance;
+            if (mm == null || mm.CurrentId != objectiveId) return;
             if (other.GetComponentInParent<PlayerController>() == null) return;
-            if (MissionManager.Instance == null) return;
-
-            if (MissionManager.Instance.Complete(mission)) _fired = true;
+            mm.Complete(objectiveId);
         }
     }
 }

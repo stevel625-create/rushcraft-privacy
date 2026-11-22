@@ -1,4 +1,4 @@
-# THE LOST WORLD — Chapter 1 prototype (Unity 6, URP)
+# THE LOST WORLD — 6-level prototype (Unity 6, URP)
 
 Zorvex Entertainment · iOS and Android · third-person jungle adventure
 
@@ -9,7 +9,7 @@ and free of merge conflicts.
 ## Status
 
 **Written, not yet run in the Unity Editor.** The C# has been syntax-checked (tree-sitter parse of
-all 20 files, no errors). It has *not* been compiled against UnityEngine, and no play-mode test has run.
+all 30 files, no errors). It has *not* been compiled against UnityEngine, and no play-mode test has run.
 Expect a short round of compile fixes on first open. See "Verification still needed" below.
 
 ## Project layout
@@ -18,12 +18,13 @@ Expect a short round of compile fixes on first open. See "Verification still nee
 TheLostWorld/
   Assets/_Game/
     Scripts/
-      Core/          GameBootstrap (entry point), InputRouter, GameState
+      Core/          GameBootstrap (level flow), InputRouter, GameState, Respawn, MaterialFactory, WorldMessage
       Player/        PlayerController, ThirdPersonCamera
       Companion/     CompanionFollower (Elena's AI)
-      Missions/      MissionManager, MissionTrigger, CooperativePuzzle, PressurePlate
+      Missions/      MissionManager, MissionTrigger, CooperativePuzzle, Mechanics (doors, pickups, braziers, statues)
       Interaction/   Interactable, InteractionDetector
-      Environment/   JungleBuilder (procedural jungle, crash site, temple)
+      Levels/        LevelFramework (catalog, theme, layout) + Level1Crash … Level6Sanctum
+      Environment/   WorldKit (shared primitive/terrain/door/plate/light builders)
       Save/          SaveSystem (JSON checkpoint)
       UI/            GameHUD (in-game), MainMenu (Play/Continue/Settings/Store)
       Monetization/  IStoreService, ProductCatalog, MockStoreService
@@ -45,7 +46,7 @@ TheLostWorld/
    `Assets/_Game/Scenes/Chapter1.unity` with the `GameBootstrap` object, adds it to Build Settings,
    and applies the player settings (bundle ID, landscape, IL2CPP, ARM64, min OS versions).
    The build commands run this step automatically, so CI needs no manual setup.
-3. **Play.** Open `Chapter1.unity` and press Play. The main menu appears. Press **PLAY**.
+3. **Play.** Open `Chapter1.unity` and press Play. The main menu appears. Press **NEW GAME**, or **LEVELS** to pick an unlocked level.
 
 ### Controls
 
@@ -107,24 +108,43 @@ then build to a connected iPhone or archive and upload to TestFlight.
 | Rendering | URP, linear colour, no HDR, no MSAA, 40 m shadow distance |
 | Frame rate | 60 fps target (`GameBootstrap`) |
 
-## Mission flow (Chapter 1)
+## Levels
 
-| # | Mission | Completed by |
-|---|---|---|
-| 1 | Find Elena | Jason walks to Elena's position (`Trig_FindElena`) |
-| 2 | Investigate the crash site | Jason enters the wreck (`Trig_CrashSite`). Logbook and radio are examinable |
-| 3 | Follow the ancient trail | Jason walks the stone trail (`Trig_Trail`) |
-| 4 | Reach the temple entrance | Jason reaches the plaza (`Trig_Temple`) |
-| 5 | Solve the first cooperative puzzle | Jason on the left plate and Elena on the right plate, held 1 s. The temple door opens |
+Six levels, played in order. Finishing a level unlocks the next one (**LEVELS** on the main menu).
+Every level is generated at runtime from primitives by its builder in `Scripts/Levels/`.
 
-Missions advance strictly in order. `MissionManager.Complete` ignores out-of-order calls.
+| # | Level | Objectives | New mechanic |
+|---|---|---|---|
+| 1 | **The Crash** (jungle) | Find Elena → read the pilot's logbook → follow the trail → reach the temple → hold the plates with Elena | Interact-to-progress, two-person plates |
+| 2 | **The Sunken Gate** (flooded river) | Hop the stepping stones → Elena holds the gate plate → reach the river shrine | Water hazard + checkpoints, Elena holds a plate alone |
+| 3 | **Canopy Walk** (tree tops, 12 m up) | Collect 3 relic shards on side platforms → reach the lookout | Rope bridges, jump gaps, collectibles with a (n/3) counter, fall respawn |
+| 4 | **The Echo Caves** (dark maze) | Light 3 braziers → find the exit behind the stone door | Darkness, point-light braziers, counted objective that opens a door |
+| 5 | **Obsidian Peak** (volcano) | Cross the lava on basalt columns → climb the spiral stair → ring the summit gong | Lava hazard, long climb with mid-way checkpoint |
+| 6 | **Heart of the Temple** (night sanctum) | Enter the hall → turn 3 guardian statues to face the altar → hold the final seal with Elena → claim the relic | Rotating-statue puzzle, final co-op seal |
+
+Hint for level 6: the inscription near the entrance explains the statues. Each statue's gold face must point at the altar (north).
+
+Falling or touching water or lava returns Jason to his last checkpoint. There are no lives and no game over.
+If Elena falls, she is placed back next to Jason on solid ground. She can't jump, so on gap-heavy levels
+(2, 3, 5) this is how she keeps up. Proper companion traversal is a later feature.
+
+### Adding a level
+
+1. Create `Scripts/Levels/LevelNName.cs` implementing `ILevelBuilder`, with a static `Definition`
+   (title, theme, objectives).
+2. Build geometry with `WorldKit` (`Box`, `Prim`, `Ground`, `Liquid`, `Door`, `Plate`, `Flame`, `Trigger`, `Checkpoint`).
+3. Wire objectives with the mechanics in `Missions/`: `MissionTrigger`, `CooperativePuzzle`, `CountedObjective`
+   with `Collectible` or `Brazier`, `StatuePuzzle` with `RotatingStatue`, and `InteractAction`.
+   Put Elena's puzzle positions in `LevelLayout.CompanionSpots`.
+4. Add it to `LevelCatalog.All`.
 
 ## Save & checkpoints
 
-- The **SAVE CHECKPOINT** button in the pause menu writes `chapter1_save.json` to `Application.persistentDataPath`.
-- It stores: mission index, Jason's position and heading, and whether the puzzle is solved.
-- **CONTINUE** on the main menu restores that state. It is greyed out when no save exists.
-- **ERASE LOCAL SAVE** in Settings deletes it. All file IO is wrapped in try/catch.
+- The game **autosaves** whenever an objective completes and when a level starts. **SAVE CHECKPOINT** in the pause menu saves on demand.
+- The save (`lostworld_save.json` in `Application.persistentDataPath`) stores the level, the objective index and Jason's position.
+  On **CONTINUE**, puzzles already behind the player are restored in their solved state: doors open, shards collected, braziers lit.
+- Level unlocks are stored separately (PlayerPrefs), so **ERASE LOCAL SAVE** keeps them. Use **RESET LEVEL UNLOCKS** to clear them.
+- Saves from the earlier one-level prototype are ignored (format version 2).
 
 ## Monetization (architecture only, no real purchases)
 
@@ -148,31 +168,38 @@ Missions advance strictly in order. `MissionManager.Complete` ignores out-of-ord
 | Third-person camera with touch orbit and occlusion pull-in | Written. Needs play-mode check |
 | Climbing | **Not implemented.** The brief asks for "basic climbing"; the hook is not built yet |
 | Elena follow AI: following band, waits, obstacle steering, catch-up warp | Written. No NavMesh; steering is raycast-based |
-| Elena scripted walk (`WalkTo`) for puzzles | API present; no scripted sequence authored yet |
-| Procedural jungle: ground mesh, trees, rocks, bushes, trail, temple, crash site | Written from primitives. Visual quality is basic by design |
+| Elena scripted positions (waits to be found, walks to plates) | Written, via `LevelLayout.CompanionSpots` |
+| Elena traversal of gaps (jumping) | **Not implemented.** She is placed back next to Jason when she falls |
+| Six procedural levels (jungle, river, canopy, caves, volcano, sanctum) | Written from primitives. Visual quality is basic by design. Jump distances and puzzle spots need play-testing |
+| Level flow: level select, unlocks, level-complete screen, next level | Written |
+| Hazards, checkpoints, fall respawn | Written |
 | Stylized materials, fog, sun | Basic flat colours plus fog. No art pass |
-| Mission system (5 missions, strict order) + triggers | Written |
-| Cooperative puzzle (two plates, Jason + Elena) | Written. Elena is scripted to walk to her plate when mission 5 starts, then resumes following. Check her stopping point on the plate in play |
-| Interaction system (prompt, USE button, examine) | Written. Two examinables (logbook, radio). The radio is not wired to a mission yet |
-| Main menu: Play, Continue, Settings, Store | Written |
-| Pause menu and checkpoint save | Written |
+| Data-driven objectives (per level, strict order, progress counters) | Written |
+| Puzzles: co-op plates, collectibles, braziers, rotating statues, interact objectives | Written |
+| Interaction system (prompt, USE button, examine text) | Written |
+| Main menu: New Game, Continue, Levels, Settings, Store | Written |
+| Pause menu, autosave and checkpoint save with puzzle-state restore | Written |
 | Mock store with confirmation dialog | Written. Mock only |
 | Unity IAP production store | **Not implemented.** Interface and catalog only |
 | Animations (Jason, Elena) | **Not implemented.** Placeholder capsules; the Animator hooks are optional |
 | Audio | **Not implemented** |
-| Mobile performance pass (LOD, batching, texture budget) | **Not done.** Tree and vegetation counts are set low (`JungleBuilder`) but untested |
+| Mobile performance pass (LOD, batching, texture budget) | **Not done.** Object counts are modest and point lights skip shadows, but frame rate is untested. The heaviest scenes are likely levels 1 and 3 (many trees) |
 
 ### Verification still needed (in the Editor, not done here)
 
 1. Compile. Expect possible minor errors (e.g. a namespace or a Unity API difference in Unity 6).
 2. Play mode: Jason walks, runs, and jumps. Camera follows and rotates.
-3. Elena follows at ~2.5 m and waits when Jason stops. Check she doesn't get stuck on trees.
-4. Walk the mission chain 1 → 5 end to end, then save and continue.
-5. Puzzle: Jason and Elena each stand on their plate and the door opens.
-6. Test on a real phone for touch behaviour and frame rate.
+3. Play each level start to finish. In particular check:
+   - Level 2: stepping-stone gaps, and the gate opening when Elena reaches her plate.
+   - Level 3: all jump gaps (route and shard platforms) are makeable.
+   - Level 4: the maze is readable with the braziers' light. Tune ambient light if it's too dark on a phone.
+   - Level 5: the stair is climbable all the way. The 2.3 m jump from the last column to the base is hard on purpose; shorten it if needed.
+   - Level 6: the statues rotate and lock, and the inner door and relic cage open.
+4. Save mid-level, quit to the menu, and continue. Solved puzzles should stay solved.
+5. Test on a real phone for touch behaviour and frame rate.
 
 ## Tuning knobs
 
 Most values are `[SerializeField]` on the components, so you can tune them in the Inspector:
 `PlayerController` (speeds, jump), `ThirdPersonCamera` (distance, pitch limits, sensitivity),
-`CompanionFollower` (follow and stop distances), `JungleBuilder` (seed, tree/rock/bush counts, terrain size).
+`CompanionFollower` (follow and stop distances). Level layout values (gap sizes, counts, heights) are constants at the top of each `Levels/LevelN*.cs` file.

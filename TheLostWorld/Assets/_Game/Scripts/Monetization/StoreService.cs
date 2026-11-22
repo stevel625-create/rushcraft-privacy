@@ -43,8 +43,8 @@ namespace LostWorld.Monetization
 
         public static readonly ProductDef[] All =
         {
-            new ProductDef { id = Chapter2, displayName = "Chapter 2: The Sunken Gate", kind = ProductKind.Chapter, priceLabel = "$—" },
-            new ProductDef { id = Chapter3, displayName = "Chapter 3: The Obsidian Peak", kind = ProductKind.Chapter, priceLabel = "$—" },
+            new ProductDef { id = Chapter2, displayName = "Chapter 2 Expansion (planned)", kind = ProductKind.Chapter, priceLabel = "$—" },
+            new ProductDef { id = Chapter3, displayName = "Chapter 3 Expansion (planned)", kind = ProductKind.Chapter, priceLabel = "$—" },
             new ProductDef { id = CosmeticOutfitExplorer, displayName = "Explorer Outfit", kind = ProductKind.Cosmetic, priceLabel = "$—" },
             new ProductDef { id = CosmeticOutfitSafari, displayName = "Safari Outfit", kind = ProductKind.Cosmetic, priceLabel = "$—" },
             new ProductDef { id = CompleteAdventure, displayName = "Complete Adventure", kind = ProductKind.Bundle, priceLabel = "$—" },

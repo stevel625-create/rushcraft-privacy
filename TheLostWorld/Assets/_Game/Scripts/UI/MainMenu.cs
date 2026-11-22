@@ -1,5 +1,7 @@
 using LostWorld.Core;
+using LostWorld.Levels;
 using LostWorld.Monetization;
+using LostWorld.Save;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -13,7 +15,9 @@ namespace LostWorld.UI
     {
         GameBootstrap _game;
         Canvas _canvas;
-        GameObject _main, _store, _settings, _confirm;
+        GameObject _main, _store, _settings, _confirm, _levels;
+        readonly System.Collections.Generic.List<(Button button, Text label, int index)> _levelButtons =
+            new System.Collections.Generic.List<(Button, Text, int)>();
         Button _continue;
         Text _confirmText;
         string _pendingProduct;
@@ -52,10 +56,23 @@ namespace LostWorld.UI
 
             _main = Panel("Main", new Color(0.04f, 0.09f, 0.05f, 0.92f));
             Title(_main.transform, "THE LOST WORLD", "Chapter 1: The Crash");
-            Button play = Btn(_main.transform, "Play", "PLAY", 0.5f, 0.5f, () => _game.StartNewGame());
-            _continue = Btn(_main.transform, "Continue", "CONTINUE", 0.5f, 0.4f, () => _game.Continue());
-            Btn(_main.transform, "Settings", "SETTINGS", 0.5f, 0.3f, () => ShowPanel(_settings));
-            Btn(_main.transform, "Store", "STORE", 0.5f, 0.2f, () => { RefreshStore(); ShowPanel(_store); });
+            Btn(_main.transform, "Play", "NEW GAME", 0.5f, 0.54f, () => _game.StartNewGame());
+            _continue = Btn(_main.transform, "Continue", "CONTINUE", 0.5f, 0.44f, () => _game.Continue());
+            Btn(_main.transform, "Levels", "LEVELS", 0.5f, 0.34f, () => { RefreshLevels(); ShowPanel(_levels); });
+            Btn(_main.transform, "Settings", "SETTINGS", 0.5f, 0.24f, () => ShowPanel(_settings));
+            Btn(_main.transform, "Store", "STORE", 0.5f, 0.14f, () => { RefreshStore(); ShowPanel(_store); });
+
+            _levels = Panel("Levels", new Color(0.04f, 0.08f, 0.05f, 0.96f));
+            Title(_levels.transform, "LEVELS", "Finish a level to unlock the next.");
+            for (int i = 0; i < LevelCatalog.Count; i++)
+            {
+                int index = i;
+                float x = i % 2 == 0 ? 0.32f : 0.68f;
+                float y = 0.58f - (i / 2) * 0.13f;
+                var b = Btn(_levels.transform, "Level" + (i + 1), "", x, y, () => _game.StartLevel(index), 640);
+                _levelButtons.Add((b, b.GetComponentInChildren<Text>(), index));
+            }
+            Btn(_levels.transform, "LevelsBack", "BACK", 0.5f, 0.12f, () => ShowPanel(_main), 360);
 
             _store = Panel("Store", new Color(0.04f, 0.06f, 0.1f, 0.96f));
             Title(_store.transform, "STORE", "Chapter 1 is free. Other content is a mock purchase in this prototype.");
@@ -75,6 +92,11 @@ namespace LostWorld.UI
             {
                 MockStoreService.ResetAll();
                 _game.ShowToast("Mock purchases reset");
+            }, 520);
+            Btn(_settings.transform, "ResetLevels", "RESET LEVEL UNLOCKS", 0.5f, 0.3f, () =>
+            {
+                ProgressStore.ResetAll();
+                _game.ShowToast("Level unlocks reset");
             }, 520);
             Btn(_settings.transform, "SettingsBack", "BACK", 0.5f, 0.04f, () => ShowPanel(_main), 360);
 
@@ -99,6 +121,17 @@ namespace LostWorld.UI
                     p.displayName, () => AskConfirm(prod.id), new Vector2(900, 80));
                 btn.gameObject.name = "Buy_" + p.id;
                 y -= 0.1f;
+            }
+        }
+
+        void RefreshLevels()
+        {
+            foreach (var (button, label, index) in _levelButtons)
+            {
+                var def = LevelCatalog.Get(index);
+                bool open = ProgressStore.IsUnlocked(index);
+                button.interactable = open;
+                label.text = open ? $"{def.Number}. {def.Title}" : $"{def.Number}. LOCKED";
             }
         }
 
@@ -148,6 +181,7 @@ namespace LostWorld.UI
             _main.SetActive(panel == _main);
             _store.SetActive(panel == _store);
             _settings.SetActive(panel == _settings);
+            _levels.SetActive(panel == _levels);
         }
 
         GameObject Panel(string name, Color bg)

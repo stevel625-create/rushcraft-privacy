@@ -64,6 +64,7 @@ namespace LostWorld.Player
         public void Snap()
         {
             _initialised = false;
+            if (target) yaw = target.eulerAngles.y; // start behind the character
         }
     }
 }

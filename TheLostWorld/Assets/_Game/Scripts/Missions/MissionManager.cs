@@ -4,44 +4,39 @@ using UnityEngine;
 
 namespace LostWorld.Missions
 {
-    public enum MissionId
+    /// <summary>One step of a level, e.g. ("find_elena", "Find Elena"). Ids are unique within a level.</summary>
+    public class ObjectiveDef
     {
-        FindElena = 0,
-        InvestigateCrash = 1,
-        FollowAncientTrail = 2,
-        ReachTemple = 3,
-        CooperativePuzzle = 4,
-        Complete = 5
-    }
+        public readonly string Id;
+        public readonly string Title;
 
-    public static class MissionData
-    {
-        public static readonly string[] Titles =
+        public ObjectiveDef(string id, string title)
         {
-            "Find Elena",
-            "Investigate the crash site",
-            "Follow the ancient trail",
-            "Reach the temple entrance",
-            "Solve the first cooperative puzzle",
-            "Chapter 1 complete"
-        };
-
-        public static string Title(MissionId id) => Titles[Mathf.Clamp((int)id, 0, Titles.Length - 1)];
+            Id = id;
+            Title = title;
+        }
     }
 
     /// <summary>
-    /// Linear mission chain for Chapter 1. Objectives advance only when the matching trigger
-    /// calls Complete(id). Triggers live in the world (see MissionTrigger).
+    /// Runs the ordered objective list of the current level. World mechanics (triggers, puzzles, pickups)
+    /// call Complete(id); only the active objective can complete, so out-of-order calls are ignored.
     /// </summary>
     public class MissionManager : MonoBehaviour
     {
         public static MissionManager Instance { get; private set; }
 
-        public event Action<MissionId> MissionStarted;
-        public event Action<MissionId> MissionCompleted;
+        public event Action<ObjectiveDef> ObjectiveStarted;
+        public event Action<ObjectiveDef> ObjectiveCompleted;
+        public event Action<ObjectiveDef, int, int> ProgressChanged; // objective, current, total
+        public event Action LevelCompleted;
 
-        public MissionId Current { get; private set; } = MissionId.FindElena;
-        public bool IsChapterComplete => Current == MissionId.Complete;
+        IReadOnlyList<ObjectiveDef> _objectives = Array.Empty<ObjectiveDef>();
+
+        public int CurrentIndex { get; private set; }
+        public ObjectiveDef Current => CurrentIndex < _objectives.Count ? _objectives[CurrentIndex] : null;
+        public string CurrentId => Current?.Id;
+        public bool IsLevelComplete => _objectives.Count > 0 && CurrentIndex >= _objectives.Count;
+        public IReadOnlyList<ObjectiveDef> Objectives => _objectives;
 
         void Awake()
         {
@@ -49,29 +44,38 @@ namespace LostWorld.Missions
             Instance = this;
         }
 
-        void Start()
+        /// <summary>Start a level's objectives, optionally resuming from a saved index.</summary>
+        public void LoadObjectives(IReadOnlyList<ObjectiveDef> objectives, int startIndex = 0)
         {
-            MissionStarted?.Invoke(Current);
+            _objectives = objectives ?? Array.Empty<ObjectiveDef>();
+            CurrentIndex = Mathf.Clamp(startIndex, 0, _objectives.Count);
+            if (Current != null) ObjectiveStarted?.Invoke(Current);
         }
 
-        /// <summary>Only the active mission can complete; out-of-order calls are ignored.</summary>
-        public bool Complete(MissionId id)
+        public bool Complete(string id)
         {
-            if (id != Current) return false;
+            if (Current == null || Current.Id != id) return false;
 
-            MissionCompleted?.Invoke(id);
-            Current = (MissionId)((int)id + 1);
-            if (Current > MissionId.Complete) Current = MissionId.Complete;
-            MissionStarted?.Invoke(Current);
+            var done = Current;
+            CurrentIndex++;
+            ObjectiveCompleted?.Invoke(done);
+
+            if (Current != null) ObjectiveStarted?.Invoke(Current);
+            else LevelCompleted?.Invoke();
             return true;
         }
 
-        /// <summary>Used by SaveSystem when restoring a checkpoint.</summary>
-        public void SetMissionSilently(MissionId id)
+        /// <summary>True if the objective is already behind the player (used to fast-forward on Continue).</summary>
+        public bool IsCompleted(string id)
         {
-            Current = id;
+            for (int i = 0; i < CurrentIndex && i < _objectives.Count; i++)
+                if (_objectives[i].Id == id) return true;
+            return false;
         }
 
-        public string CurrentTitle => MissionData.Title(Current);
+        public void ReportProgress(string id, int current, int total)
+        {
+            if (Current != null && Current.Id == id) ProgressChanged?.Invoke(Current, current, total);
+        }
     }
 }

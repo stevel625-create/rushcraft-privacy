@@ -1,67 +1,88 @@
+using System.Collections.Generic;
 using LostWorld.Companion;
-using LostWorld.Missions;
 using LostWorld.Player;
 using UnityEngine;
 
 namespace LostWorld.Missions
 {
     /// <summary>
-    /// Two plates: Jason must stand on plate A while Elena stands on plate B, held for holdSeconds.
-    /// Only progresses while the CooperativePuzzle mission is active. Completing it calls MissionManager.
+    /// Implemented by every world mechanic tied to an objective, so Continue can put already-finished
+    /// puzzles into their solved state without replaying them.
     /// </summary>
-    public class CooperativePuzzle : MonoBehaviour
+    public interface IObjectiveMechanic
     {
-        [SerializeField] PressurePlate plateA; // Jason
-        [SerializeField] PressurePlate plateB; // Elena
-        [SerializeField] float holdSeconds = 1.0f;
-        [SerializeField] GameObject solvedVisual; // e.g. a glowing door or gem
+        string ObjectiveId { get; }
+        void ForceComplete();
+    }
 
+    public enum Occupant { Jason, Elena }
+
+    /// <summary>
+    /// Plates that must all be held by the right character at once for holdSeconds.
+    /// One plate (Elena) = "hold the gate" puzzle; two plates (Jason + Elena) = classic co-op puzzle.
+    /// </summary>
+    public class CooperativePuzzle : MonoBehaviour, IObjectiveMechanic
+    {
+        [SerializeField] string objectiveId;
+        [SerializeField] float holdSeconds = 1f;
+
+        readonly List<(PressurePlate plate, Occupant need)> _plates = new List<(PressurePlate, Occupant)>();
+        GameObject _solvedVisual;
+        SlidingDoor _door;
         float _held;
         bool _solved;
 
+        public string ObjectiveId => objectiveId;
         public bool Solved => _solved;
 
-        public void SetPlates(PressurePlate a, PressurePlate b)
+        public void Configure(string id, float hold = 1f)
         {
-            plateA = a;
-            plateB = b;
+            objectiveId = id;
+            holdSeconds = hold;
         }
 
-        public void SetVisual(GameObject visual) => solvedVisual = visual;
+        public void AddPlate(PressurePlate plate, Occupant need) => _plates.Add((plate, need));
+        public void SetVisual(GameObject visual) => _solvedVisual = visual;
+        public void SetDoor(SlidingDoor door) => _door = door;
 
         void Update()
         {
-            if (_solved || MissionManager.Instance == null) return;
-            if (MissionManager.Instance.Current != MissionId.CooperativePuzzle) return;
+            if (_solved || _plates.Count == 0) return;
+            var mm = MissionManager.Instance;
+            if (mm == null || mm.CurrentId != objectiveId) return;
 
-            bool ok = plateA && plateB && plateA.Occupant == Occupant.Jason && plateB.Occupant == Occupant.Elena;
+            bool ok = true;
+            foreach (var (plate, need) in _plates)
+                if (plate == null || !plate.Has(need)) { ok = false; break; }
+
             _held = ok ? _held + Time.deltaTime : 0f;
-
-            if (_held >= holdSeconds) Solve();
+            if (_held >= holdSeconds)
+            {
+                ApplySolved(false);
+                mm.Complete(objectiveId);
+            }
         }
 
-        void Solve()
-        {
-            _solved = true;
-            if (solvedVisual) solvedVisual.SetActive(true);
-            MissionManager.Instance.Complete(MissionId.CooperativePuzzle);
-        }
+        public void ForceComplete() => ApplySolved(true);
 
-        /// <summary>Restore from a save without replaying the reward.</summary>
-        public void RestoreSolved()
+        void ApplySolved(bool instant)
         {
             _solved = true;
-            if (solvedVisual) solvedVisual.SetActive(true);
+            if (_solvedVisual) _solvedVisual.SetActive(true);
+            if (_door) { if (instant) _door.OpenInstant(); else _door.Open(); }
         }
     }
 
-    public enum Occupant { None, Jason, Elena }
-
-    /// <summary>Tracks whether Jason or Elena is standing on it. Tag-free: checks component types.</summary>
+    /// <summary>
+    /// Reports who is standing on it. Flags are rebuilt every physics step from OnTriggerStay, so they stay
+    /// correct after teleports (where OnTriggerExit may never fire).
+    /// </summary>
     [RequireComponent(typeof(Collider))]
     public class PressurePlate : MonoBehaviour
     {
-        public Occupant Occupant { get; private set; }
+        bool _jason, _elena;
+
+        public bool Has(Occupant who) => who == Occupant.Jason ? _jason : _elena;
 
         void Reset()
         {
@@ -69,18 +90,16 @@ namespace LostWorld.Missions
             if (c) c.isTrigger = true;
         }
 
-        void OnTriggerStay(Collider other)
+        void FixedUpdate()
         {
-            if (other.GetComponentInParent<PlayerController>() != null) Occupant = Occupant.Jason;
-            else if (other.GetComponentInParent<CompanionFollower>() != null) Occupant = Occupant.Elena;
+            _jason = false;
+            _elena = false;
         }
 
-        void OnTriggerExit(Collider other)
+        void OnTriggerStay(Collider other)
         {
-            if (other.GetComponentInParent<PlayerController>() != null && Occupant == Occupant.Jason)
-                Occupant = Occupant.None;
-            else if (other.GetComponentInParent<CompanionFollower>() != null && Occupant == Occupant.Elena)
-                Occupant = Occupant.None;
+            if (other.GetComponentInParent<PlayerController>() != null) _jason = true;
+            else if (other.GetComponentInParent<CompanionFollower>() != null) _elena = true;
         }
     }
 }

@@ -52,7 +52,7 @@ namespace LostWorld.Companion
 
             if (dist > teleportDistance)
             {
-                Warp(leader.position - leader.forward * followDistance);
+                WarpTo(leader.position - leader.forward * followDistance);
                 return;
             }
 
@@ -138,7 +138,7 @@ namespace LostWorld.Companion
                 Quaternion.LookRotation(d.normalized), turnSpeed * Time.deltaTime);
         }
 
-        void Warp(Vector3 position)
+        public void WarpTo(Vector3 position)
         {
             _cc.enabled = false;
             transform.position = position;
