@@ -55,9 +55,21 @@ export function createRenderer(gl: GLLike, make: MakeRenderer = defaultMake): TH
   const WebGL1 = g.WebGLRenderingContext;
   const misclassified = typeof WebGL1 === 'function' && gl instanceof (WebGL1 as new () => object);
   if (misclassified) g.WebGLRenderingContext = undefined;
+  let renderer: THREE.WebGLRenderer;
   try {
-    return make({ canvas: fakeCanvas(gl), context: gl as unknown as WebGL2RenderingContext, antialias: false });
+    renderer = make({ canvas: fakeCanvas(gl), context: gl as unknown as WebGL2RenderingContext, antialias: false });
   } finally {
     if (misclassified) g.WebGLRenderingContext = WebGL1;
   }
+  configure(renderer);
+  return renderer;
+}
+
+/** Realistic look: filmic tone mapping and soft-edged sun shadows. */
+function configure(renderer: THREE.WebGLRenderer) {
+  if (!renderer.shadowMap) return; // test doubles
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 }

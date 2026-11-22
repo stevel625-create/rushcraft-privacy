@@ -48,24 +48,28 @@ export const level2: LevelDefinition = {
     }
 
     // Gate wall across the valley with a sliding gate in the middle.
-    kit.box(v3(-35, 3, WALL_Z), v3(64, 8, 2), STONE);
-    kit.box(v3(35, 3, WALL_Z), v3(64, 8, 2), STONE);
-    kit.box(v3(0, 6.5, WALL_Z), v3(6, 3, 2), STONE);
+    kit.box(v3(-35, 3, WALL_Z), v3(64, 8, 2), STONE, { surface: 'stone' });
+    kit.box(v3(35, 3, WALL_Z), v3(64, 8, 2), STONE, { surface: 'stone' });
+    kit.box(v3(0, 6.5, WALL_Z), v3(6, 3, 2), STONE, { surface: 'stone' });
     const door = kit.door(v3(0, 2.5, WALL_Z), v3(6, 5, 1.6), MOSS);
     const plate = kit.plate(v3(7, H(7, WALL_Z - 6) + 0.1, WALL_Z - 6), METAL);
     kit.add(new CoopPuzzle(HOLD, [{ plate, need: 'elena' }], door, 0.6));
 
     // Shrine beyond the gate.
     const sz = 72, sy = H(0, sz);
-    kit.box(v3(0, sy + 0.15, sz), v3(8, 0.3, 8), STONE);
+    kit.box(v3(0, sy + 0.15, sz), v3(8, 0.3, 8), STONE, { surface: 'stone' });
     for (let i = 0; i < 4; i++) {
       const a = i * Math.PI / 2 + Math.PI / 4;
-      kit.cylinder(v3(Math.cos(a) * 3, sy + 2.5, sz + Math.sin(a) * 3), 0.35, 4.4, STONE);
+      kit.cylinder(v3(Math.cos(a) * 3, sy + 2.5, sz + Math.sin(a) * 3), 0.35, 4.4, STONE, { surface: 'stone' });
     }
-    kit.box(v3(0, sy + 4.9, sz), v3(7.5, 0.6, 7.5), STONE);
+    kit.box(v3(0, sy + 4.9, sz), v3(7.5, 0.6, 7.5), STONE, { surface: 'stone' });
 
     scatter(kit, 55, 60, (x, z) => Math.abs(x) < 9 || (z + 30 > RIVER_START - 3 && z + 30 < RIVER_END + 3) || Math.abs(z + 30 - WALL_Z) < 3,
       (x, z) => kit.tree(v3(x, H(x, z + 30), z + 30), TRUNK, LEAF));
+
+    // Grass on both banks (not in the channel).
+    scatter(kit, 900, 60, (x, z) => z + 30 > RIVER_START - 1 && z + 30 < RIVER_END + 1,
+      (x, z) => kit.grassTuft(x, H(x, z + 30), z + 30, 0x6a9450, kit.rng.range(0.7, 1.2)));
 
     const farBank = v3(0, H(0, RIVER_END + 5), RIVER_END + 5);
     kit.trigger(CROSS, farBank, 4);

@@ -44,7 +44,7 @@ export const level4: LevelDefinition = {
     const rows = CAVE_MAP.length, cols = CAVE_MAP[0].length;
     const cx = ((cols - 1) * CELL) / 2, cz = -((rows - 1) * CELL) / 2;
 
-    kit.box(v3(cx, -0.25, cz), v3(cols * CELL, 0.5, rows * CELL), FLOOR);
+    kit.box(v3(cx, -0.25, cz), v3(cols * CELL, 0.5, rows * CELL), FLOOR, { surface: 'dirt' });
     // Roof: collides only so the camera stays inside the maze (it is far above jump height).
     kit.box(v3(cx, WALL_H + 0.25, cz), v3(cols * CELL, 0.5, rows * CELL), ROCK);
 
@@ -61,7 +61,7 @@ export const level4: LevelDefinition = {
           case 'E': exit = p; kit.pointLight(v3(p.x, 3, p.z), 0xccddff, 12, 3); break;
           case 'D': door = kit.door(v3(p.x, WALL_H / 2, p.z), v3(CELL, WALL_H, CELL), DOOR); break;
           case 'C':
-            kit.box(v3(p.x + 1.2, 0.6, p.z + 1.2), v3(0.5, 1.2, 0.5), CRYSTAL, { emissive: 0x1f4d80, yaw: 0.5, tilt: { x: 0.25, z: 0.2 } });
+            kit.box(v3(p.x + 1.2, 0.6, p.z + 1.2), v3(0.5, 1.2, 0.5), CRYSTAL, { surface: 'plain', emissive: 0x1f4d80, yaw: 0.5, tilt: { x: 0.25, z: 0.2 } });
             kit.pointLight(v3(p.x + 1.2, 1.5, p.z + 1.2), 0x66b3ff, 8, 1.5);
             break;
           case 'B': brazierCells.push([r, c]); break;
@@ -71,7 +71,9 @@ export const level4: LevelDefinition = {
     const counter = kit.add(new CountedObjective(BRAZIERS, brazierCells.length, door));
     for (const [r, c] of brazierCells) kit.brazier(cellPos(r, c), counter);
 
-    kit.flame(v3(start.x - 2.6, 2.2, start.z + 1.4)); // starting torch, on the corner wall
+    // Starting torch on the corridor wall ahead-left of Jason, with an iron bracket.
+    kit.box(v3(start.x + 2.5, 2.05, start.z + 1.9), v3(0.08, 0.5, 0.2), 0x2b2620, { collide: false, surface: 'metal' });
+    kit.flame(v3(start.x + 2.5, 2.45, start.z + 1.75));
     kit.trigger(EXIT, exit, 1.8);
     kit.checkpoint(cellPos(5, 4), 1.5);
 

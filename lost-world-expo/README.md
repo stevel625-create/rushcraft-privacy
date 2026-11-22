@@ -3,8 +3,8 @@
 Zorvex Entertainment · third-person jungle adventure · iOS and Android via **Expo Go** (Expo SDK 58)
 
 Jason Cross and his AI partner Elena Reyes explore six levels, from the jungle crash site to the heart of an
-ancient temple. Everything is drawn with three.js on Expo's built-in `expo-gl`, from code-generated low-poly
-shapes. No paid assets, no native modules beyond what Expo Go ships, and no build step needed to play on a phone.
+ancient temple. Everything is drawn with three.js on Expo's built-in `expo-gl`: realistic (PBR) materials with
+code-generated textures, sun shadows, a sky dome, animated characters, trees and grass, all made in code. No paid assets, no native modules beyond what Expo Go ships, and no build step needed to play on a phone.
 
 ## Play it on your iPhone (about 5 minutes)
 
@@ -93,7 +93,7 @@ Real purchases can't run in Expo Go: they need native store code. When you're re
 
 ## Known limits
 
-- Jason and Elena are placeholder capsules (with a dark visor showing which way they face). There are no animations and no audio yet.
+- Jason and Elena are built and animated in code (walk, run, jump, idle). They're stylised-realistic, not scanned humans: true photoreal characters need model files (e.g. Mixamo characters you download with your own Adobe account), which can be added later. There's no audio yet.
 - Elena can't jump. On gap levels (2, 3, 5) she is placed back next to Jason when she falls.
 - No climbing.
 - Not yet tested on a physical phone. It renders and plays in a desktop browser, and every level is verified

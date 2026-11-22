@@ -28,38 +28,38 @@ export const level6: LevelDefinition = {
     const FLOOR = 0x59524d, STONE = 0x807566, DARK = 0x47403d, GOLD = 0xf2bf40, METAL = 0x998c73, GLASS = 0x4d8089;
     const len = BACK - FRONT, midZ = (BACK + FRONT) / 2;
 
-    kit.box(v3(0, -0.25, midZ), v3(HALF_W * 2, 0.5, len), FLOOR);
-    kit.box(v3(-HALF_W, WALL_H / 2, midZ), v3(1, WALL_H, len), STONE);
-    kit.box(v3(HALF_W, WALL_H / 2, midZ), v3(1, WALL_H, len), STONE);
-    kit.box(v3(0, WALL_H / 2, BACK), v3(HALF_W * 2, WALL_H, 1), STONE);
-    kit.box(v3(0, WALL_H / 2, FRONT), v3(HALF_W * 2, WALL_H, 1), STONE);
+    kit.box(v3(0, -0.25, midZ), v3(HALF_W * 2, 0.5, len), FLOOR, { surface: 'stone' });
+    kit.box(v3(-HALF_W, WALL_H / 2, midZ), v3(1, WALL_H, len), STONE, { surface: 'stone' });
+    kit.box(v3(HALF_W, WALL_H / 2, midZ), v3(1, WALL_H, len), STONE, { surface: 'stone' });
+    kit.box(v3(0, WALL_H / 2, BACK), v3(HALF_W * 2, WALL_H, 1), STONE, { surface: 'stone' });
+    kit.box(v3(0, WALL_H / 2, FRONT), v3(HALF_W * 2, WALL_H, 1), STONE, { surface: 'stone' });
     for (let z = 4; z < BACK - 2; z += 6) {
       if (Math.abs(z - INNER_Z) < 2) continue;
-      kit.cylinder(v3(-9, WALL_H / 2, z), 0.7, WALL_H, DARK);
-      kit.cylinder(v3(9, WALL_H / 2, z), 0.7, WALL_H, DARK);
+      kit.cylinder(v3(-9, WALL_H / 2, z), 0.7, WALL_H, DARK, { surface: 'stone' });
+      kit.cylinder(v3(9, WALL_H / 2, z), 0.7, WALL_H, DARK, { surface: 'stone' });
     }
 
     // Wall torches; only some carry a light to keep the per-pixel light count mobile-friendly.
     for (const z of [8, 26, 44, 58])
       for (const side of [-1, 1]) kit.flame(v3(side * (HALF_W - 0.9), 3.2, z), (z === 8 || z === 44) && side === -1 || z === 26 && side === 1);
 
-    kit.box(v3(-4, 1, 6), v3(1.6, 2, 0.3), DARK);
+    kit.box(v3(-4, 1, 6), v3(1.6, 2, 0.3), DARK, { surface: 'stone' });
     kit.action(v3(-4, 1, 6), 'Read inscription', '"Only when the guardians look upon the heart will the way open."');
 
     // Inner wall with the statue-locked door.
-    kit.box(v3(-(HALF_W + 3) / 2, WALL_H / 2, INNER_Z), v3(HALF_W - 3, WALL_H, 1), STONE);
-    kit.box(v3((HALF_W + 3) / 2, WALL_H / 2, INNER_Z), v3(HALF_W - 3, WALL_H, 1), STONE);
-    kit.box(v3(0, WALL_H - 1, INNER_Z), v3(6, 2, 1), STONE);
+    kit.box(v3(-(HALF_W + 3) / 2, WALL_H / 2, INNER_Z), v3(HALF_W - 3, WALL_H, 1), STONE, { surface: 'stone' });
+    kit.box(v3((HALF_W + 3) / 2, WALL_H / 2, INNER_Z), v3(HALF_W - 3, WALL_H, 1), STONE, { surface: 'stone' });
+    kit.box(v3(0, WALL_H - 1, INNER_Z), v3(6, 2, 1), STONE, { surface: 'stone' });
     const innerDoor = kit.door(v3(0, 3, INNER_Z), v3(6, 6, 1.2), DARK);
 
     // Guardian statues: each must face +Z (the altar). Gold "face" shows which way it looks.
     const statues = [-6, 0, 6].map((x, i) => {
-      kit.box(v3(x, 0.3, 22), v3(1.8, 0.6, 1.8), STONE);
+      kit.box(v3(x, 0.3, 22), v3(1.8, 0.6, 1.8), STONE, { surface: 'stone' });
       const root = new THREE.Group();
       root.position.set(x, 0.6, 22);
       kit.root.add(root);
-      kit.box(v3(0, 1.1, 0), v3(1, 2.2, 0.8), STONE, { collide: false, dynamic: true }, root);
-      kit.box(v3(0, 1.7, 0.45), v3(0.5, 0.35, 0.15), GOLD, { collide: false, dynamic: true, emissive: 0x403010 }, root);
+      kit.box(v3(0, 1.1, 0), v3(1, 2.2, 0.8), STONE, { surface: 'stone', collide: false, dynamic: true }, root);
+      kit.box(v3(0, 1.7, 0.45), v3(0.5, 0.35, 0.15), GOLD, { surface: 'metal', collide: false, dynamic: true, emissive: 0x403010 }, root);
       kit.physics.addCylinder(v3(x, 1.7, 22), 0.6, 2.2);
       const s = new RotatingStatue(v3(x, 1.2, 22), root, i + 1, 0);
       kit.interactables.push(s);
@@ -69,8 +69,8 @@ export const level6: LevelDefinition = {
 
     // Inner chamber: final seal and the relic in a stone cage.
     const altar = v3(0, 0, 56);
-    kit.box(v3(altar.x, 0.6, altar.z), v3(2.4, 1.2, 2.4), STONE);
-    kit.sphere(v3(altar.x, 1.65, altar.z), 0.35, GOLD, { emissive: 0x664010 });
+    kit.box(v3(altar.x, 0.6, altar.z), v3(2.4, 1.2, 2.4), STONE, { surface: 'stone' });
+    kit.sphere(v3(altar.x, 1.65, altar.z), 0.35, GOLD, { surface: 'metal', emissive: 0x664010 });
     kit.pointLight(v3(altar.x, 3, altar.z), 0xffd980, 12, 3);
     const cage = kit.door(v3(altar.x, 2.0, altar.z), v3(1.8, 1.6, 1.8), GLASS);
     kit.action(v3(altar.x, 1.65, altar.z - 0.6), 'Take the relic',

@@ -6,6 +6,7 @@ import { Emitter } from './events';
 import { InputState } from './input';
 import type { Interactable, MechanicContext } from './mechanics';
 import { MissionManager } from './missions';
+import { SkyDome } from './sky';
 import { v3, type Vec3 } from './physics';
 import { WorldKit } from './world';
 
@@ -53,6 +54,7 @@ export class Game extends Emitter<GameEvents> {
   layout: LevelLayout | null = null;
   private readonly hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.4);
   private readonly sun = new THREE.DirectionalLight(0xffffff, 2);
+  private readonly sky = new SkyDome();
   private checkpoint: { pos: Vec3; yaw: number } = { pos: v3(), yaw: 0 };
   private respawnCooldown = 0;
   private currentInteractable: Interactable | null = null;
@@ -62,7 +64,14 @@ export class Game extends Emitter<GameEvents> {
   constructor(aspect = 16 / 9) {
     super();
     this.orbit = new OrbitCamera(aspect);
-    this.scene.add(this.hemi, this.sun, this.sun.target, this.player.mesh, this.companion.mesh);
+    this.scene.add(this.sky.mesh, this.hemi, this.sun, this.sun.target, this.player.mesh, this.companion.mesh);
+    // Sun shadows cover a 60 m square that follows Jason (see followSun).
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(1024, 1024);
+    const sc = this.sun.shadow.camera;
+    sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30; sc.near = 1; sc.far = 140;
+    this.sun.shadow.bias = -0.0006;
+    this.sun.shadow.normalBias = 0.03;
 
     this.missions.on('started', (o) => {
       this.progressText = '';
@@ -142,7 +151,7 @@ export class Game extends Emitter<GameEvents> {
     this.hemi.intensity = t.ambientIntensity;
     this.sun.color.setHex(t.sunColor);
     this.sun.intensity = t.sunIntensity;
-    this.sun.position.set(t.sunFrom.x * 50, t.sunFrom.y * 50, t.sunFrom.z * 50);
+    this.sky.setTheme(t.sky, t.fog, t.sunColor, t.sunFrom, t.sunIntensity > 1);
   }
 
   snapshot(): SaveData {
@@ -165,6 +174,17 @@ export class Game extends Emitter<GameEvents> {
     const look = this.input.consumeLook();
     for (let i = 0; i < steps; i++) this.simulate(h);
     this.orbit.update(this.player.body.pos, look, world.physics, dt || 1 / 60);
+    this.afterFrame(dt);
+  }
+
+  /** Cosmetic per-frame work: sky follows the camera, sun shadow follows Jason, water/lava flow. */
+  private afterFrame(dt: number) {
+    this.sky.follow(this.orbit.camera);
+    const p = this.player.body.pos, f = this.level.theme.sunFrom;
+    const len = Math.hypot(f.x, f.y, f.z) || 1;
+    this.sun.target.position.set(p.x, p.y, p.z);
+    this.sun.position.set(p.x + (f.x / len) * 60, p.y + (f.y / len) * 60, p.z + (f.z / len) * 60);
+    this.world?.tick(dt);
   }
 
   private simulate(dt: number) {
@@ -192,6 +212,7 @@ export class Game extends Emitter<GameEvents> {
     this.time += dt;
     this.orbit.yaw += dt * 0.08;
     this.orbit.update(this.player.body.pos, { dx: 0, dy: 0 }, this.world.physics, Math.min(dt, 1 / 30) || 1 / 60);
+    this.afterFrame(dt);
   }
 
   private updateInteraction(ctx: MechanicContext) {

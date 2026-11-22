@@ -1,22 +1,9 @@
 import * as THREE from 'three';
+import { ELENA, Humanoid, JASON } from './humanoid';
 import type { InputState } from './input';
 import { CharacterBody, type Physics, type Vec3 } from './physics';
 
 const WALK = 3.2, RUN = 6.5, RUN_THRESHOLD = 0.85, JUMP_HEIGHT = 1.4, TURN = 12;
-
-const CAPSULE = new THREE.CapsuleGeometry(0.35, 1.1, 4, 10);
-const VISOR = new THREE.BoxGeometry(0.4, 0.15, 0.1);
-
-/** Placeholder character mesh: capsule body plus a dark visor so facing reads clearly. */
-function makeFigure(color: number): THREE.Group {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(CAPSULE, new THREE.MeshLambertMaterial({ color, flatShading: true }));
-  body.position.y = 0.9;
-  const visor = new THREE.Mesh(VISOR, new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
-  visor.position.set(0, 1.5, 0.3);
-  g.add(body, visor);
-  return g;
-}
 
 const angleLerp = (from: number, to: number, k: number) => {
   const d = Math.atan2(Math.sin(to - from), Math.cos(to - from));
@@ -25,7 +12,8 @@ const angleLerp = (from: number, to: number, k: number) => {
 
 export class Player {
   readonly body: CharacterBody;
-  readonly mesh = makeFigure(0x2659b3);
+  readonly figure = new Humanoid(JASON);
+  readonly mesh = this.figure.group;
   yaw = 0;
   controlsEnabled = true;
 
@@ -64,11 +52,20 @@ export class Player {
       this.body.vel.y = Math.sqrt(2 * -this.body.gravity * JUMP_HEIGHT);
       this.body.grounded = false;
     }
+    const x0 = this.body.pos.x, z0 = this.body.pos.z;
     this.body.step(physics, wx * speed, wz * speed, dt);
+    this.animate(x0, z0, dt);
     this.sync();
   }
 
   get forward() { return { x: Math.sin(this.yaw), z: Math.cos(this.yaw) }; }
+
+  /** Drive the walk/run/jump animation from how far Jason actually moved (walls slow him, so do they). */
+  private animate(x0: number, z0: number, dt: number) {
+    if (dt <= 0) return;
+    const speed = Math.hypot(this.body.pos.x - x0, this.body.pos.z - z0) / dt;
+    this.figure.update(dt, speed, this.body.grounded, this.body.vel.y);
+  }
 
   sync() {
     this.mesh.position.set(this.body.pos.x, this.body.pos.y, this.body.pos.z);
@@ -84,7 +81,8 @@ export type CompanionState = 'waiting' | 'following' | 'scripted';
  */
 export class Companion {
   readonly body: CharacterBody;
-  readonly mesh = makeFigure(0xd9738c);
+  readonly figure = new Humanoid(ELENA);
+  readonly mesh = this.figure.group;
   yaw = 0;
   state: CompanionState = 'waiting';
   private target: Vec3 | null = null;
@@ -129,7 +127,9 @@ export class Companion {
       if (this.state === 'following') [hx, hz] = this.steer(physics, lp, dist > 6 ? 6 : 3.6, 1.6);
       else this.face(lp, dt);
     }
+    const x0 = this.body.pos.x, z0 = this.body.pos.z;
     this.body.step(physics, hx, hz, dt);
+    if (dt > 0) this.figure.update(dt, Math.hypot(this.body.pos.x - x0, this.body.pos.z - z0) / dt, this.body.grounded, this.body.vel.y);
     this.sync();
   }
 

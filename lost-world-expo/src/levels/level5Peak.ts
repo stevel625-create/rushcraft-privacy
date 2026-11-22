@@ -34,14 +34,14 @@ export const level5: LevelDefinition = {
 
     // Start island and basalt columns (tops at BASE_TOP).
     const island = v3(0, BASE_TOP, -45);
-    kit.cylinder(v3(0, BASE_TOP - 1.5, -45), 6, 3, BASALT);
-    [0, 1.6, -0.4, -2, -0.5, 1.4, 0].forEach((x, i) => kit.cylinder(v3(x, BASE_TOP - 1.5, -36.5 + i * 3.2), 1, 3, BASALT));
+    kit.cylinder(v3(0, BASE_TOP - 1.5, -45), 6, 3, BASALT, { surface: 'rock' });
+    [0, 1.6, -0.4, -2, -0.5, 1.4, 0].forEach((x, i) => kit.cylinder(v3(x, BASE_TOP - 1.5, -36.5 + i * 3.2), 1, 3, BASALT, { surface: 'rock' }));
 
     // Stepped volcanic cone.
     // Tier 0 is 1.5 m wider than the cone line: a 2.7 m landing ring after the lava jumps.
     for (let i = 0; i < TIERS; i++) {
       const top = BASE_TOP + TIER_H * i;
-      kit.cylinder(v3(0, top - TIER_H / 2, 0), tierRadius(i) + (i === 0 ? 1.5 : 0), TIER_H, OBSIDIAN);
+      kit.cylinder(v3(0, top - TIER_H / 2, 0), tierRadius(i) + (i === 0 ? 1.5 : 0), TIER_H, OBSIDIAN, { surface: 'rock' });
     }
 
     // Spiral stair hugging the cone, starting on the side facing the columns (-Z).
@@ -54,16 +54,16 @@ export const level5: LevelDefinition = {
       const r = tierRadius(tier) + 1.2;
       theta += STEP_ARC / r;
       // Box local X must point radially: local X maps to (cos yaw, -sin yaw), radial is (cos t, sin t) => yaw = -t.
-      kit.box(v3(Math.cos(theta) * r, y - 0.15, Math.sin(theta) * r), v3(2.4, 0.3, STEP_ARC + 0.3), BASALT, { yaw: -theta });
+      kit.box(v3(Math.cos(theta) * r, y - 0.15, Math.sin(theta) * r), v3(2.4, 0.3, STEP_ARC + 0.3), BASALT, { surface: 'rock', yaw: -theta });
       if (s === Math.floor(steps / 2)) midStair = v3(Math.cos(theta) * r, y, Math.sin(theta) * r);
     }
 
     // Summit gong.
     const summit = v3(0, SUMMIT_Y, 0);
-    kit.box(v3(-1.4, SUMMIT_Y + 1.5, 0), v3(0.25, 3, 0.25), OBSIDIAN);
-    kit.box(v3(1.4, SUMMIT_Y + 1.5, 0), v3(0.25, 3, 0.25), OBSIDIAN);
-    kit.box(v3(0, SUMMIT_Y + 3, 0), v3(3.1, 0.25, 0.25), OBSIDIAN, { collide: false });
-    kit.cylinder(v3(0, SUMMIT_Y + 1.7, 0), 1, 0.12, BRONZE, { collide: false, tilt: { x: Math.PI / 2 } });
+    kit.box(v3(-1.4, SUMMIT_Y + 1.5, 0), v3(0.25, 3, 0.25), OBSIDIAN, { surface: 'rock' });
+    kit.box(v3(1.4, SUMMIT_Y + 1.5, 0), v3(0.25, 3, 0.25), OBSIDIAN, { surface: 'rock' });
+    kit.box(v3(0, SUMMIT_Y + 3, 0), v3(3.1, 0.25, 0.25), OBSIDIAN, { surface: 'rock', collide: false });
+    kit.cylinder(v3(0, SUMMIT_Y + 1.7, 0), 1, 0.12, BRONZE, { surface: 'metal', collide: false, tilt: { x: Math.PI / 2 } });
     kit.action(v3(0, SUMMIT_Y + 1.2, 0), 'Ring the gong', 'BWONNNG... the sound rolls across the valley.', GONG,
       'Climb to the summit first.');
 

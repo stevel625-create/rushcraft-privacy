@@ -27,9 +27,14 @@ export const level3: LevelDefinition = {
     kit.ground(0, 45, 160, 32, (x, z) => (Math.sin(x * 0.07) * Math.cos(z * 0.06) + 1), FLOOR);
 
     const platform = (top: Vec3, r: number) => {
-      kit.cylinder(v3(top.x, top.y - 0.2, top.z), r, 0.4, WOOD);
+      kit.cylinder(v3(top.x, top.y - 0.2, top.z), r, 0.4, WOOD, { surface: 'wood' });
       kit.cylinder(v3(top.x, top.y / 2 - 0.4, top.z), 0.6, top.y, TRUNK);
-      kit.sphere(v3(top.x, top.y + 7, top.z), v3(r * 1.2, 1.5, r * 1.2), LEAF);
+      // Leafy crown over each platform: a ring of clumps plus one in the middle.
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2;
+        kit.foliage(v3(top.x + Math.cos(a) * r * 0.7, top.y + 6.5, top.z + Math.sin(a) * r * 0.7), r * 0.55, LEAF);
+      }
+      kit.foliage(v3(top.x, top.y + 7.2, top.z), r * 0.7, LEAF);
     };
 
     /** Plank bridge between two platform edges, with rope rails that also keep characters on. */
@@ -76,13 +81,15 @@ export const level3: LevelDefinition = {
     const counter = kit.add(new CountedObjective(SHARDS, sides.length));
     for (const s of sides) {
       platform(s, 2.2);
-      const shard = kit.box(v3(s.x, s.y + 1.2, s.z), v3(0.6, 0.6, 0.6), RELIC, { collide: false, dynamic: true, emissive: 0x1a6680 }).mesh;
+      const shard = kit.box(v3(s.x, s.y + 1.2, s.z), v3(0.6, 0.6, 0.6), RELIC, { surface: 'plain', collide: false, dynamic: true, emissive: 0x1a6680 }).mesh;
       shard.rotation.set(Math.PI / 4, 0, Math.PI / 4);
       kit.add(new Collectible(shard, counter));
       kit.pointLight(v3(s.x, s.y + 1.6, s.z), 0x66e6ff, 6, 1.2);
     }
 
     scatter(kit, 40, 70, () => false, (x, z) => kit.tree(v3(x, 0, z + 45), TRUNK, LEAF, 8, 14));
+    const floorH = (x: number, z: number) => Math.sin(x * 0.07) * Math.cos(z * 0.06) + 1;
+    scatter(kit, 700, 70, () => false, (x, z) => kit.grassTuft(x, floorH(x, z + 45), z + 45, 0x5a8a40, kit.rng.range(0.8, 1.4)));
 
     kit.checkpoint(v3(route[3].x, route[3].y, route[3].z));
     kit.checkpoint(v3(route[6].x, route[6].y, route[6].z));
