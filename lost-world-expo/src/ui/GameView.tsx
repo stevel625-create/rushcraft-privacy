@@ -76,7 +76,13 @@ export function GameView({ game, mode, onPause }: Props) {
     };
   }, [game, onPause]);
 
+  // The GL drawing buffer is sized once, when the context is created. Create it only once the phone is
+  // landscape, and recreate it (new key) if the screen size changes, so the picture is never stretched.
+  const landscape = Platform.OS === 'web' || width >= height;
+  const glKey = `${Math.round(width)}x${Math.round(height)}`;
+
   const onContextCreate = (gl: ExpoWebGLRenderingContext) => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current); // stop the previous context's loop
     const glAny = gl as unknown as GLLike;
     let renderer;
     try {
@@ -113,7 +119,13 @@ export function GameView({ game, mode, onPause }: Props) {
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      <GLView style={StyleSheet.absoluteFill} onContextCreate={onContextCreate} msaaSamples={0} />
+      {landscape ? (
+        <GLView key={glKey} style={StyleSheet.absoluteFill} onContextCreate={onContextCreate} msaaSamples={0} />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.rotate]}>
+          <Text style={styles.errorTitle}>Turn your phone sideways</Text>
+        </View>
+      )}
       {glError && (
         <View style={[StyleSheet.absoluteFill, styles.errorBox]} pointerEvents="none">
           <Text style={styles.errorTitle}>3D couldn&apos;t start on this device</Text>
@@ -138,6 +150,7 @@ export function GameView({ game, mode, onPause }: Props) {
 }
 
 const styles = StyleSheet.create({
+  rotate: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#050a07' },
   errorBox: { alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 24, paddingHorizontal: 24 },
   errorTitle: { color: '#f2bf40', fontWeight: '800', fontSize: 15 },
   errorText: { color: '#f4f1e8', fontSize: 13, textAlign: 'center', marginTop: 4 },
