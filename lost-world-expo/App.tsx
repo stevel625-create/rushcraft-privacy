@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Game } from './src/engine/game';
+import { AudioService } from './src/audio/AudioService';
+import { VOICE_SECONDS } from './src/audio/voices';
 import { loadCharacterModels } from './src/models/loadModels';
 import { LEVELS } from './src/levels';
 import {
@@ -24,6 +26,8 @@ function createGame() {
 
 export default function App() {
   const [game] = useState(createGame);
+  const [audio] = useState(() => new AudioService());
+  const [soundOn, setSoundOn] = useState(true);
   const [screen, setScreen] = useState<Screen>('menu');
   const [hasSave, setHasSave] = useState(false);
   const [unlocked, setUnlocked] = useState(1);
@@ -43,6 +47,20 @@ export default function App() {
       .catch((e) => console.warn('[LostWorld] character models failed to load, using built-in figures:', e));
   }, [game]);
 
+  // Audio: effects, loops, ambience, dialogue voices (recording or text-to-speech), haptics.
+  useEffect(() => {
+    audio.init();
+    game.dialogue.recordedDurations = VOICE_SECONDS;
+    const offs = [
+      game.on('sound', (n) => audio.play(n)),
+      game.on('loop', (n, on) => audio.loop(n, on)),
+      game.on('ambience', (n) => audio.setAmbience(n)),
+      game.on('dialogue', (line) => audio.say(line)),
+      game.on('haptic', (k) => audio.haptic(k)),
+    ];
+    return () => { offs.forEach((off) => off()); audio.dispose(); };
+  }, [game, audio]);
+
   useEffect(() => {
     const offs = [
       game.on('save', (d) => { writeSave(d).then((ok) => ok && setHasSave(true)); }),
@@ -54,13 +72,16 @@ export default function App() {
 
   const flash = (text: string) => { setNote(text); setTimeout(() => setNote(''), 2500); };
 
-  const startLevel = useCallback((index: number) => {
+  /** `intro`: play the plane-crash opening first (New Game). */
+  const startLevel = useCallback((index: number, intro = false) => {
     game.paused = false;
-    game.loadLevel(index);
+    audio.resumeAll();
+    game.loadLevel(index, null, { intro });
+    if (intro) game.startOpening();
     writeSave(game.snapshot()).then((ok) => ok && setHasSave(true));
     setComplete(null);
     setScreen('playing');
-  }, [game]);
+  }, [game, audio]);
 
   const onContinue = async () => {
     const s = await readSave();
@@ -72,9 +93,9 @@ export default function App() {
     setScreen('playing');
   };
 
-  const pause = useCallback(() => { game.paused = true; setScreen('paused'); }, [game]);
-  const resume = () => { game.paused = false; setScreen('playing'); };
-  const toMenu = () => { game.paused = false; game.player.controlsEnabled = false; setScreen('menu'); };
+  const pause = useCallback(() => { game.paused = true; audio.pauseAll(); setScreen('paused'); }, [game, audio]);
+  const resume = () => { game.paused = false; audio.resumeAll(); setScreen('playing'); };
+  const toMenu = () => { game.paused = false; game.dialogue.clear(); audio.resumeAll(); game.player.controlsEnabled = false; setScreen('menu'); };
 
   const mode: ViewMode = screen === 'playing' ? 'play' : screen === 'paused' ? 'frozen' : 'idle';
 
@@ -84,7 +105,7 @@ export default function App() {
       <GameView game={game} mode={mode} onPause={pause} />
 
       {screen === 'menu' && (
-        <MainMenu hasSave={hasSave} onNew={() => { deleteSave(); startLevel(0); }} onContinue={onContinue}
+        <MainMenu hasSave={hasSave} onNew={() => { deleteSave(); startLevel(0, true); }} onContinue={onContinue}
           onLevels={() => setScreen('levels')} onSettings={() => setScreen('settings')} onStore={() => setScreen('store')} />
       )}
       {screen === 'levels' && <LevelSelect unlocked={unlocked} onPick={startLevel} onBack={() => setScreen('menu')} />}
@@ -94,6 +115,8 @@ export default function App() {
           onEraseSave={() => { deleteSave(); setHasSave(false); flash('Saved progress erased'); }}
           onResetUnlocks={() => { resetUnlocks(); setUnlocked(1); flash('Level unlocks reset'); }}
           onResetPurchases={() => { resetMockOwned(PRODUCTS.map((p) => p.id)); setOwned(new Set()); flash('Mock purchases reset'); }}
+          soundOn={soundOn}
+          onToggleSound={() => { const next = !soundOn; setSoundOn(next); audio.setMuted(!next); }}
           onBack={() => setScreen('menu')}
         />
       )}

@@ -1,4 +1,5 @@
 import { CoopPuzzle } from '../engine/mechanics';
+import { FIRE, SMOKE } from '../engine/particles';
 import { v3 } from '../engine/physics';
 import type { WorldKit } from '../engine/world';
 import { defaultTheme, scatter, type LevelDefinition } from './types';
@@ -56,6 +57,12 @@ export const level1: LevelDefinition = {
         { collide: false, yaw: kit.rng.range(0, 6.28), tilt: { x: kit.rng.range(-0.5, 0.5) } });
     }
 
+    // The wreck is still burning: fire on the engine and the broken wing root, smoke drifting downwind.
+    kit.emitter(v3(8.5, 1.6, 0.6), FIRE);
+    kit.emitter(v3(8.5, 2.2, 0.6), SMOKE);
+    kit.emitter(v3(-1.8, 1.5, 4.7), { ...FIRE, rate: 30, radius: 0.35, size: [0.7, 0.15] }); // torn fuselage end
+    kit.emitter(v3(-1.8, 2.0, 4.7), { ...SMOKE, rate: 12, size: [0.8, 3.2] });
+    kit.pointLight(v3(8.5, 2.4, 0.6), 0xff7a2a, 12, 2.5);
     kit.box(v3(-1.2, 0.06, 1.2), v3(0.5, 0.12, 0.35), PAPER, { surface: 'plain', collide: false });
     kit.action(v3(-1.2, 0.3, 1.2), 'Read logbook',
       '"Engine fire over the ridge... heading for the old temple road, north."', INVESTIGATE,

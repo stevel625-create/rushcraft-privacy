@@ -1,7 +1,9 @@
 import { GLView, type ExpoWebGLRenderingContext } from 'expo-gl';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import type { Game } from '../engine/game';
+import { Animated, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import type { Game, GameMode } from '../engine/game';
+import { CinematicOverlay } from './CinematicOverlay';
+import { Subtitles } from './Subtitles';
 import { Hud } from './Hud';
 import { createRenderer, type GLLike } from './renderer';
 import { Controls } from './Controls';
@@ -23,6 +25,10 @@ export function GameView({ game, mode, onPause }: Props) {
   const [joystick, setJoystick] = useState<JoystickVisual>({ active: false, ox: 0, oy: 0, kx: 0, ky: 0 });
   const modeRef = useRef(mode);
   const [glError, setGlError] = useState<string | null>(null);
+  const [gameMode, setGameMode] = useState<GameMode>(game.mode);
+  useEffect(() => game.on('mode', setGameMode), [game]);
+  // Cinematic fade / flash / letterbox, written every frame from the render loop (no re-renders).
+  const [fx] = useState(() => ({ fade: new Animated.Value(0), flash: new Animated.Value(0), letterbox: new Animated.Value(0) }));
   const frame = useRef<number | null>(null);
 
   useEffect(() => { modeRef.current = mode; }, [mode]);
@@ -99,6 +105,7 @@ export function GameView({ game, mode, onPause }: Props) {
     renderer.setPixelRatio(1);
     renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight, false);
     game.setAspect(gl.drawingBufferWidth / gl.drawingBufferHeight);
+    game.setViewportHeight(gl.drawingBufferHeight);
 
     let last = Date.now();
     const loop = () => {
@@ -107,6 +114,10 @@ export function GameView({ game, mode, onPause }: Props) {
       last = now;
       if (modeRef.current === 'play') game.update(dt);
       else if (modeRef.current === 'idle') game.idle(dt);
+      const cs = game.cinematicState;
+      fx.fade.setValue(cs ? cs.fade : 0);
+      fx.flash.setValue(cs ? cs.flash : 0);
+      fx.letterbox.setValue(cs?.letterbox ? 1 : 0);
       renderer.render(game.scene, game.camera);
       gl.endFrameEXP();
       frame.current = requestAnimationFrame(loop);
@@ -132,8 +143,12 @@ export function GameView({ game, mode, onPause }: Props) {
           <Text style={styles.errorText}>{glError}</Text>
         </View>
       )}
-      {playing && <Controls touch={touch} buttons={buttons} useEnabled={useEnabled} onStick={sync} />}
-      {playing && <Hud game={game} buttons={buttons} joystick={joystick} onPause={onPause} onPromptChange={setUseEnabled} />}
+      {playing && gameMode === 'play' && <Controls touch={touch} buttons={buttons} useEnabled={useEnabled} onStick={sync} />}
+      {playing && gameMode === 'play' && <Hud game={game} buttons={buttons} joystick={joystick} onPause={onPause} onPromptChange={setUseEnabled} />}
+      {playing && gameMode === 'cinematic' && (
+        <CinematicOverlay fade={fx.fade} flash={fx.flash} letterbox={fx.letterbox} onSkip={() => game.skipCinematic()} />
+      )}
+      {playing && <Subtitles game={game} tapToSkip={gameMode === 'cinematic'} />}
     </View>
   );
 }

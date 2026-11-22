@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { LEVELS } from '../levels';
+import { CONVERSATIONS, DIALOGUE_TRIGGERS, type DialogueEvent } from '../levels/dialogue';
 import type { LevelLayout } from '../levels/types';
+import { OpeningCinematic, type CinematicState } from './cinematic';
+import { DialogueManager, type DialogueLine } from './dialogue';
 import { Companion, OrbitCamera, Player } from './characters';
 import { Emitter } from './events';
 import { InputState } from './input';
@@ -34,7 +37,23 @@ type GameEvents = {
   save: [SaveData];
   /** Levels [0..index] are now unlocked. */
   unlock: [index: number];
+  /** Subtitle line to show and voice to play (null = clear). */
+  dialogue: [DialogueLine | null];
+  /** One-shot sound effect by name (see src/audio/sounds.ts). */
+  sound: [name: string];
+  /** Start / stop a looping sound effect. */
+  loop: [name: string, on: boolean];
+  /** Background ambience for the current level or scene (null = silence). */
+  ambience: [name: string | null];
+  haptic: [kind: 'impact'];
+  /** 'cinematic' while the opening plays; the HUD and controls are hidden. */
+  mode: [mode: GameMode];
 };
+
+export type GameMode = 'play' | 'cinematic';
+
+/** Background ambience per level number. */
+const AMBIENCE: Record<number, string> = { 1: 'jungle', 2: 'jungle', 3: 'wind', 4: 'cave', 5: 'lava', 6: 'temple' };
 
 /**
  * The whole game simulation, independent of React and of the GL context:
@@ -50,6 +69,10 @@ export class Game extends Emitter<GameEvents> {
   levelIndex = 0;
   paused = false;
   time = 0;
+  mode: GameMode = 'play';
+  readonly dialogue = new DialogueManager();
+  private cinematic: OpeningCinematic | null = null;
+  private viewportHeight = 720;
 
   world: WorldKit | null = null;
   layout: LevelLayout | null = null;
@@ -74,7 +97,9 @@ export class Game extends Emitter<GameEvents> {
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.03;
 
+    this.dialogue.on('line', (l) => this.emit('dialogue', l));
     this.missions.on('started', (o) => {
+      this.talk(`started:${o.id}`);
       this.progressText = '';
       this.setHud({ objective: o.title });
       this.emit('toast', o.title, 'objective');
@@ -86,8 +111,9 @@ export class Game extends Emitter<GameEvents> {
       this.progressText = ` (${cur}/${total})`;
       this.setHud({ objective: o.title + this.progressText });
     });
-    this.missions.on('completed', () => this.emit('save', this.snapshot()));
+    this.missions.on('completed', (o) => { this.talk(`completed:${o.id}`); this.emit('save', this.snapshot()); });
     this.missions.on('levelComplete', () => {
+      this.talk('levelComplete');
       const hasNext = this.levelIndex + 1 < LEVELS.length;
       if (hasNext) this.emit('unlock', this.levelIndex + 1);
       this.player.controlsEnabled = false;
@@ -107,6 +133,61 @@ export class Game extends Emitter<GameEvents> {
   get level() { return LEVELS[this.levelIndex]; }
   get camera() { return this.orbit.camera; }
 
+  /** Play the conversation hooked to this mission event in the current level, if any. */
+  private talk(event: DialogueEvent) {
+    const id = DIALOGUE_TRIGGERS[this.level.number]?.[event];
+    if (id && CONVERSATIONS[id]) this.dialogue.play(CONVERSATIONS[id]);
+  }
+
+  /** Viewport height in pixels (particle sprites are sized in world units from it). */
+  setViewportHeight(px: number) {
+    this.viewportHeight = px;
+    this.world?.setViewportHeight(px);
+  }
+
+  get cinematicState(): CinematicState | null {
+    return this.mode === 'cinematic' && this.cinematic ? this.cinematic.state : null;
+  }
+
+  /** Play the plane-crash opening, then hand control over in Mission 1 (Find Elena). Level 1 must be loaded. */
+  startOpening() {
+    if (this.levelIndex !== 0 || !this.world) return;
+    this.mode = 'cinematic';
+    this.player.controlsEnabled = false;
+    this.dialogue.clear();
+    const game = this;
+    this.cinematic = new OpeningCinematic({
+      scene: this.scene,
+      camera: this.orbit.camera,
+      player: this.player.mesh,
+      playerStart: new THREE.Vector3(this.player.body.pos.x, this.player.body.pos.y, this.player.body.pos.z),
+      playerYaw: this.player.yaw,
+      viewportHeight: this.viewportHeight,
+      sound: (n) => game.emit('sound', n),
+      loop: (n, on) => game.emit('loop', n, on),
+      ambience: (n) => game.emit('ambience', n),
+      say: (id) => { const c = CONVERSATIONS[id]; if (c) game.dialogue.play(c); },
+      clearDialogue: () => game.dialogue.clear(),
+      haptic: (k) => game.emit('haptic', k),
+      finished: () => game.endOpening(),
+    });
+    this.emit('mode', 'cinematic');
+    this.cinematic.start();
+  }
+
+  skipCinematic() { this.cinematic?.skip(); }
+
+  private endOpening() {
+    this.cinematic = null;
+    this.mode = 'play';
+    this.player.controlsEnabled = true;
+    this.orbit.snap(this.player.yaw);
+    this.input.reset();
+    this.emit('mode', 'play');
+    const o = this.missions.current;
+    if (o) this.emit('toast', o.title, 'objective');
+  }
+
   setAspect(aspect: number) {
     this.orbit.camera.aspect = aspect;
     this.orbit.camera.updateProjectionMatrix();
@@ -114,7 +195,14 @@ export class Game extends Emitter<GameEvents> {
 
   // ------------------------------------------------------------ levels
 
-  loadLevel(index: number, restore?: SaveData | null) {
+  /**
+   * Build and enter a level. `restore` resumes a save. `intro` = an opening cinematic will play next,
+   * so the level's start-of-level dialogue is skipped.
+   */
+  loadLevel(index: number, restore?: SaveData | null, opts: { intro?: boolean } = {}) {
+    if (this.cinematic) { this.cinematic.skip(); }
+    this.mode = 'play';
+    this.dialogue.clear();
     this.world?.dispose();
     this.levelIndex = Math.max(0, Math.min(LEVELS.length - 1, index));
     const def = LEVELS[this.levelIndex];
@@ -123,6 +211,7 @@ export class Game extends Emitter<GameEvents> {
     const layout = def.build(kit);
     kit.finalize();
     this.scene.add(kit.root);
+    kit.setViewportHeight(this.viewportHeight);
     this.world = kit;
     this.layout = layout;
     this.applyTheme();
@@ -141,6 +230,9 @@ export class Game extends Emitter<GameEvents> {
 
     this.setHud({ levelLabel: `LEVEL ${def.number} · ${def.title.toUpperCase()}`, prompt: null });
     this.missions.load(def.objectives, restore?.objectiveIndex ?? 0);
+    this.emit('ambience', AMBIENCE[def.number] ?? null);
+    this.emit('loop', 'fire', def.number === 1); // the level 1 wreck is burning
+    if (!restore && !opts.intro) this.talk('levelStart');
 
     // Continue: put puzzles already behind the player into their solved state.
     for (const m of kit.mechanics)
@@ -176,6 +268,13 @@ export class Game extends Emitter<GameEvents> {
     const world = this.world;
     if (!world || (this.paused && dt > 0)) return;
     dt = Math.min(dt, 0.1);
+    this.dialogue.update(dt);
+    if (this.mode === 'cinematic' && this.cinematic) {
+      this.time += dt;
+      this.cinematic.update(dt);
+      this.afterFrame(dt);
+      return;
+    }
     const steps = Math.max(1, Math.ceil(dt / (1 / 30)));
     const h = dt / steps;
     const look = this.input.consumeLook();
@@ -263,6 +362,7 @@ export class Game extends Emitter<GameEvents> {
       respawnJason: () => this.respawnJason(),
       recoverElena: () => this.recoverElena(),
       setCheckpoint: (p) => { this.checkpoint = { pos: { ...p }, yaw: this.player.yaw }; },
+      sound: (name) => this.emit('sound', name),
     };
   }
 
@@ -272,6 +372,7 @@ export class Game extends Emitter<GameEvents> {
     this.player.warp(this.checkpoint.pos, this.checkpoint.yaw);
     this.orbit.snap(this.checkpoint.yaw);
     this.recoverElena();
+    this.emit('sound', 'splash');
     this.emit('toast', 'Careful...', 'story');
   }
 

@@ -66,10 +66,11 @@ export function LevelSelect({ unlocked, onPick, onBack }: { unlocked: number; on
   );
 }
 
-export function Settings(p: { onEraseSave(): void; onResetUnlocks(): void; onResetPurchases(): void; onBack(): void; note: string }) {
+export function Settings(p: { onEraseSave(): void; onResetUnlocks(): void; onResetPurchases(): void; onBack(): void; note: string; soundOn: boolean; onToggleSound(): void }) {
   return (
     <Panel title="SETTINGS" subtitle="Left thumb: move (push far to run). Right thumb: drag the camera. JUMP and USE on the right.">
       <View style={styles.col}>
+        <Btn label={p.soundOn ? 'SOUND: ON' : 'SOUND: OFF'} onPress={p.onToggleSound} wide />
         <Btn label="ERASE SAVED PROGRESS" onPress={p.onEraseSave} wide danger />
         <Btn label="RESET LEVEL UNLOCKS" onPress={p.onResetUnlocks} wide danger />
         <Btn label="RESET MOCK PURCHASES" onPress={p.onResetPurchases} wide danger />

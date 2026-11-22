@@ -4,6 +4,7 @@ import {
   Brazier, Checkpoint, CountedObjective, InteractAction, KillVolume, ObjectiveTrigger, PressurePlate, SlidingDoor,
   type Interactable, type Mechanic,
 } from './mechanics';
+import { ParticleEmitter, type EmitterOptions } from './particles';
 import { Physics, v3, type Vec3 } from './physics';
 import { grassBlades, surfaceMaps, type Surface } from './textures';
 
@@ -81,6 +82,7 @@ export class WorldKit {
   private readonly animatedMaps: THREE.Texture[] = [];
   private grass: { x: number; y: number; z: number; s: number; color: Color }[] = [];
   private lightCount = 0;
+  private readonly emitters: ParticleEmitter[] = [];
 
   constructor(seed: number) {
     this.rng = new Rng(seed);
@@ -327,8 +329,8 @@ export class WorldKit {
   }
 
   /** Examinable or interact-to-complete object at `pos`. */
-  action(pos: Vec3, prompt: string, message: string, objectiveId?: string, notYet?: string) {
-    const a = new InteractAction(pos, prompt, message, objectiveId, notYet);
+  action(pos: Vec3, prompt: string, message: string, objectiveId?: string, notYet?: string, sound?: string) {
+    const a = new InteractAction(pos, prompt, message, objectiveId, notYet, sound);
     this.interactables.push(a);
     this.mechanics.push(a);
     return a;
@@ -350,9 +352,21 @@ export class WorldKit {
 
   get pointLights() { return this.lightCount; }
 
-  /** Per-frame cosmetic animation (water ripples, lava flow). */
+  /** Fire / smoke particles (updated in tick, so they also run during cinematics). */
+  emitter(origin: Vec3, options: EmitterOptions) {
+    const e = new ParticleEmitter(options);
+    e.origin.set(origin.x, origin.y, origin.z);
+    this.root.add(e.points);
+    this.emitters.push(e);
+    return e;
+  }
+
+  setViewportHeight(px: number) { this.emitters.forEach((e) => e.setViewportHeight(px)); }
+
+  /** Per-frame cosmetic animation (water ripples, lava flow, fire and smoke). */
   tick(dt: number) {
     for (const t of this.animatedMaps) { t.offset.x += dt * 0.02; t.offset.y += dt * 0.013; }
+    for (const e of this.emitters) e.update(dt);
   }
 
   // ------------------------------------------------------------ batching and cleanup
@@ -424,5 +438,6 @@ export class WorldKit {
     this.ownedGeometries.forEach((g) => g.dispose());
     this.materials.forEach((m) => m.dispose());
     this.ownedMaterials.forEach((m) => m.dispose());
+    this.emitters.forEach((e) => e.dispose());
   }
 }

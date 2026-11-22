@@ -5,6 +5,7 @@ import { LEVELS } from '../src/levels';
 import { CAVE_MAP, cellPos } from '../src/levels/level4Caves';
 import { SUMMIT_Y } from '../src/levels/level5Peak';
 import { runAutopilot, type Step } from './autopilot';
+import { DialogueManager, type DialogueLine } from '../src/engine/dialogue';
 import { InputState } from '../src/engine/input';
 import { TouchController } from '../src/ui/touchController';
 import { createRenderer, filterPixelStore, withWebGL1GlobalHidden, type GLLike } from '../src/ui/renderer';
@@ -123,6 +124,68 @@ function check(name: string, ok: boolean, detail = '') {
   ps(0x0cf2, 0);      // UNPACK_ROW_LENGTH 0: dropped
   check('renderer: pixelStorei passes supported params and drops unsupported defaults',
     calls.length === 2 && calls[0][0] === 0x9240 && calls[1][0] === 0x0cf5, JSON.stringify(calls));
+}
+
+// ------------------------------------------------------------ dialogue
+{
+  const d = new DialogueManager();
+  const seen: (string | null)[] = [];
+  d.on('line', (l) => seen.push(l ? l.id : null));
+  d.play({ id: 'a', lines: [{ speaker: 'Jason', text: 'One two three', duration: 1 }, { speaker: 'Elena', text: 'Four', duration: 1 }] });
+  d.play({ id: 'b', lines: [{ speaker: 'Elena', text: 'Queued line', duration: 1 }] }); // queues behind 'a'
+  for (let i = 0; i < 40; i++) d.update(0.1);
+  check('dialogue: lines advance by duration and conversations queue', seen.join(',') === 'a.1,a.2,,b.1,', seen.join(','));
+  const d2 = new DialogueManager();
+  d2.play({ id: 'c', lines: [{ speaker: 'Jason', text: 'x' }, { speaker: 'Jason', text: 'y' }] });
+  d2.skipLine();
+  check('dialogue: tap skips to the next line; reading-time estimate applies', d2.current?.id === 'c.2' && (d2.current?.duration ?? 0) >= 2.2, `${d2.current?.id} ${d2.current?.duration}`);
+}
+{
+  const g = new Game();
+  const lines: string[] = [];
+  g.on('dialogue', (l: DialogueLine | null) => { if (l) lines.push(l.id); });
+  g.loadLevel(0);
+  g.missions.complete('find_elena');
+  check('dialogue: level start and mission events trigger conversations',
+    lines[0] === 'l1_start.1' && g.dialogue.current !== null, lines.join(','));
+  for (let i = 0; i < 900; i++) g.update(1 / 30); // 30 s: start line + three of Elena's/Jason's lines
+  check('dialogue: finding Elena plays her lines', lines.includes('l1_found.1') && lines.includes('l1_found.3'), lines.join(','));
+}
+
+// ------------------------------------------------------------ opening cinematic
+{
+  const g = new Game();
+  const sounds: string[] = [], loops: string[] = [], amb: (string | null)[] = [], lines: string[] = [], modes: string[] = [];
+  g.on('sound', (n) => sounds.push(n));
+  g.on('loop', (n, on) => loops.push(`${n}:${on}`));
+  g.on('ambience', (n) => amb.push(n));
+  g.on('dialogue', (l) => { if (l) lines.push(l.id); });
+  g.on('mode', (m) => modes.push(m));
+  g.loadLevel(0, null, { intro: true });
+  const childrenBefore = g.scene.children.length;
+  g.startOpening();
+  const inCinematic = g.mode === 'cinematic' && !g.player.controlsEnabled && g.cinematicState !== null;
+  let maxShake = 0; const cam = g.camera.position.clone();
+  for (let i = 0; i < 23 * 30; i++) { g.update(1 / 30); maxShake = Math.max(maxShake, g.camera.position.distanceTo(cam)); cam.copy(g.camera.position); }
+  check('cinematic: plays, then hands control over in Mission 1',
+    inCinematic && g.mode === 'play' && g.player.controlsEnabled && g.missions.currentId === 'find_elena' && modes.join() === 'cinematic,play',
+    `mode=${g.mode} objective=${g.missions.currentId} modes=${modes.join()}`);
+  check('cinematic: crash, alarm and engine sounds; wind then jungle ambience',
+    sounds.includes('crash') && sounds.includes('alarm') && loops.includes('engine:true') && loops.includes('engine:false') && amb.includes('wind') && amb[amb.length - 1] === 'jungle',
+    `sounds=${[...new Set(sounds)].join(',')} ambience=${amb.join('>')}`);
+  check('cinematic: narration, mayday and wake-up lines, no level-start line',
+    ['opening_intro.1', 'opening_mayday.1', 'opening_mayday.2', 'opening_later.1', 'opening_wake.2'].every((id) => lines.includes(id)) && !lines.includes('l1_start.1'),
+    lines.join(','));
+  check('cinematic: plane and effects removed afterwards; Jason visible', g.scene.children.length === childrenBefore && g.player.mesh.visible,
+    `children ${childrenBefore} -> ${g.scene.children.length}`);
+
+  const g2 = new Game();
+  g2.loadLevel(0, null, { intro: true });
+  g2.startOpening();
+  for (let i = 0; i < 90; i++) g2.update(1 / 30); // 3 s in: mid-flight
+  g2.skipCinematic();
+  check('cinematic: skip mid-flight goes straight to Mission 1', g2.mode === 'play' && g2.player.controlsEnabled && g2.player.mesh.visible && g2.dialogue.current === null,
+    `mode=${g2.mode}`);
 }
 
 // ------------------------------------------------------------ cave map claim

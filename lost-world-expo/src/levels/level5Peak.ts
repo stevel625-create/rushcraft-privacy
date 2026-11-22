@@ -65,7 +65,7 @@ export const level5: LevelDefinition = {
     kit.box(v3(0, SUMMIT_Y + 3, 0), v3(3.1, 0.25, 0.25), OBSIDIAN, { surface: 'rock', collide: false });
     kit.cylinder(v3(0, SUMMIT_Y + 1.7, 0), 1, 0.12, BRONZE, { surface: 'metal', collide: false, tilt: { x: Math.PI / 2 } });
     kit.action(v3(0, SUMMIT_Y + 1.2, 0), 'Ring the gong', 'BWONNNG... the sound rolls across the valley.', GONG,
-      'Climb to the summit first.');
+      'Climb to the summit first.', 'gong');
 
     // Middle of the landing ring between tier 1's wall (12.8 m) and tier 0's edge (15.5 m).
     const baseLanding = v3(0, BASE_TOP, -(tierRadius(1) + tierRadius(0) + 1.5) / 2);

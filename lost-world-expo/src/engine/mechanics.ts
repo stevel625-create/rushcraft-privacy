@@ -12,6 +12,8 @@ export interface MechanicContext {
   respawnJason(): void;
   recoverElena(): void;
   setCheckpoint(p: Vec3): void;
+  /** Play a one-shot sound effect (see src/audio/sounds.ts). */
+  sound(name: string): void;
 }
 
 export interface Mechanic {
@@ -122,6 +124,7 @@ export class CoopPuzzle implements Mechanic {
     if (this.held >= this.hold) {
       this.solved = true;
       this.door?.open();
+      if (this.door) ctx.sound('door');
       ctx.missions.complete(this.objectiveId);
     }
   }
@@ -157,6 +160,7 @@ export class CountedObjective implements Mechanic {
     if (this.count >= this.required) {
       this.done = true;
       this.door?.open();
+      if (this.door) ctx.sound('door');
       ctx.missions.complete(this.objectiveId);
     }
   }
@@ -185,6 +189,7 @@ export class Collectible implements Mechanic, CountedItem {
     if (Math.hypot(p.x - m.x, p.z - m.z) < 1.2 && m.y - p.y > -0.5 && m.y - p.y < 2.4) {
       this.markDone();
       this.owner.increment();
+      ctx.sound('pickup');
       ctx.message('Relic shard found');
     }
   }
@@ -202,10 +207,11 @@ export class Brazier implements Interactable, CountedItem {
     flame.visible = false;
     owner.register(this);
   }
-  interact() {
+  interact(ctx: MechanicContext) {
     if (!this.enabled) return;
     this.markDone();
     this.owner.increment();
+    ctx.sound('pickup');
   }
   markDone() {
     this.enabled = false;
@@ -225,7 +231,11 @@ export class RotatingStatue implements Interactable, Mechanic {
     root.rotation.y = this.step * (Math.PI / 2);
   }
   get aligned() { return this.step === this.targetStep; }
-  interact() { if (this.enabled) this.step = (this.step + 1) & 3; }
+  interact(ctx: MechanicContext) {
+    if (!this.enabled) return;
+    this.step = (this.step + 1) & 3;
+    ctx.sound('door');
+  }
   update(_ctx: MechanicContext, dt: number) {
     const target = this.step * (Math.PI / 2);
     let diff = target - this.root.rotation.y;
@@ -248,6 +258,7 @@ export class StatuePuzzle implements Mechanic {
     this.solved = true;
     this.statues.forEach((s) => s.lock(false));
     this.door?.open();
+    ctx.sound('door');
     ctx.message('The statues lock into place');
     ctx.missions.complete(this.objectiveId);
   }
@@ -270,6 +281,7 @@ export class InteractAction implements Interactable, Mechanic {
     private message: string,
     readonly objectiveId?: string,
     private notYet?: string,
+    private soundName?: string,
   ) {}
   interact(ctx: MechanicContext) {
     if (!this.enabled) return;
@@ -279,6 +291,7 @@ export class InteractAction implements Interactable, Mechanic {
       return;
     }
     if (this.message) ctx.message(this.message);
+    if (this.soundName && (!id || ctx.missions.currentId === id)) ctx.sound(this.soundName);
     if (id && !this.done && ctx.missions.complete(id)) this.forceComplete();
   }
   update() {}
