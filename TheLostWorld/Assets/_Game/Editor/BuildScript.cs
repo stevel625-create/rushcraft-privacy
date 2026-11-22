@@ -133,7 +133,7 @@ namespace LostWorld.EditorTools
         static Dictionary<string, string> ParseArgs()
         {
             var result = new Dictionary<string, string>();
-            string[] a = Environment.GetCommandLineArgs();
+            string[] a = System.Environment.GetCommandLineArgs(); // fully qualified: LostWorld.Environment is our namespace
             for (int i = 0; i < a.Length; i++)
             {
                 if (!a[i].StartsWith("-")) continue;
